@@ -100,6 +100,89 @@ export class UploadService {
     }
   }
 
+  async uploadFileToFolder(
+    file: Express.Multer.File,
+    folderId?: string
+  ): Promise<{
+    fileId: string;
+    webViewLink: string;
+    webContentLink?: string;
+    thumbnailLink?: string;
+    name: string;
+    mimeType: string;
+    size: number;
+  }> {
+    try {
+      // Validate file size
+      if (file.size > this.maxFileSize) {
+        throw new BadRequestException(`File size exceeds 5MB limit. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
+      }
+
+      // Validate file type
+      if (!this.allowedMimeTypes.includes(file.mimetype)) {
+        throw new BadRequestException(`File type ${file.mimetype} is not allowed`);
+      }
+
+      // Use provided folderId or create default folder
+      let targetFolderId = folderId;
+      if (!targetFolderId) {
+        targetFolderId = await this.createFolderIfNotExists('Jobsmato Uploads');
+      } else {
+        // Verify folder exists
+        try {
+          await this.drive.files.get({
+            fileId: targetFolderId,
+            fields: 'id,mimeType',
+          });
+        } catch (error) {
+          throw new BadRequestException(`Invalid folder ID: ${targetFolderId}`);
+        }
+      }
+
+      // Convert buffer to stream
+      const fileStream = new Readable();
+      fileStream.push(file.buffer);
+      fileStream.push(null);
+
+      // Upload file to Google Drive with all required fields
+      const response = await this.drive.files.create({
+        requestBody: {
+          name: file.originalname,
+          parents: [targetFolderId],
+        },
+        media: {
+          mimeType: file.mimetype,
+          body: fileStream,
+        },
+        fields: 'id,name,webViewLink,webContentLink,thumbnailLink,size,mimeType',
+      });
+
+      const uploadedFile = response.data;
+
+      // Get thumbnail link for images
+      let thumbnailLink = uploadedFile.thumbnailLink;
+      if (!thumbnailLink && file.mimetype.startsWith('image/')) {
+        thumbnailLink = `https://drive.google.com/thumbnail?id=${uploadedFile.id}&sz=w1000`;
+      }
+
+      return {
+        fileId: uploadedFile.id,
+        webViewLink: uploadedFile.webViewLink || '',
+        webContentLink: uploadedFile.webContentLink || undefined,
+        thumbnailLink: thumbnailLink || undefined,
+        name: uploadedFile.name,
+        mimeType: uploadedFile.mimeType,
+        size: parseInt(uploadedFile.size) || file.size,
+      };
+    } catch (error) {
+      console.error('Upload error:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('File upload failed');
+    }
+  }
+
   async deleteFile(fileId: string): Promise<void> {
     try {
       await this.drive.files.delete({

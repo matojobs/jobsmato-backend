@@ -6,7 +6,11 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Req,
+  Res,
+  BadRequestException,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -25,6 +29,7 @@ import {
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../entities/user.entity';
 
@@ -131,5 +136,59 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@CurrentUser() user: User): Promise<User> {
     return user;
+  }
+
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to Google OAuth consent screen',
+  })
+  async googleAuth() {
+    // Guard redirects to Google
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Google OAuth callback' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to frontend with tokens',
+  })
+  async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
+    const user = req.user as User;
+    const authResponse = await this.authService.googleLogin(user);
+    
+    // Redirect to frontend with tokens as query parameters
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectUrl = `${frontendUrl}/auth/callback?accessToken=${authResponse.accessToken}&refreshToken=${authResponse.refreshToken}&userId=${authResponse.userId}&email=${encodeURIComponent(authResponse.email)}&fullName=${encodeURIComponent(authResponse.fullName)}&role=${authResponse.role}&onboardingComplete=${authResponse.onboardingComplete}`;
+    
+    res.redirect(redirectUrl);
+  }
+
+  @Post('google/mobile')
+  @ApiOperation({ summary: 'Google OAuth login for mobile apps' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        idToken: {
+          type: 'string',
+          description: 'Google ID token from mobile SDK',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User successfully authenticated',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Invalid Google token' })
+  async googleMobileLogin(@Body() body: { idToken: string }): Promise<AuthResponseDto> {
+    // For mobile apps, you would verify the ID token here
+    // This is a simplified version - you may want to add proper token verification
+    throw new BadRequestException('Mobile Google login not yet implemented. Please use web OAuth flow.');
   }
 }

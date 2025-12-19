@@ -149,3 +149,9 @@ credentials.json
 
 # Uploads
 uploads/
+
+
+
+logs/
+*.log
+*.log.gz

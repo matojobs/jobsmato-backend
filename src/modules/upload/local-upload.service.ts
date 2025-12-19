@@ -168,6 +168,36 @@ export class LocalUploadService {
     return mimeTypes[ext] || 'application/octet-stream';
   }
 
+  async uploadFileToFolder(
+    file: Express.Multer.File,
+    folderId?: string
+  ): Promise<{
+    fileId: string;
+    webViewLink: string;
+    webContentLink?: string;
+    thumbnailLink?: string;
+    name: string;
+    mimeType: string;
+    size: number;
+  }> {
+    // Local storage fallback - ignore folderId, use default folder
+    const result = await this.uploadFile(file, 'Jobsmato Uploads');
+    
+    // Generate full URL for local storage
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5000';
+    const fullUrl = `${baseUrl}${result.fileUrl}`;
+    
+    return {
+      fileId: result.fileId,
+      webViewLink: fullUrl,
+      webContentLink: fullUrl,
+      thumbnailLink: file.mimetype.startsWith('image/') ? fullUrl : undefined,
+      name: result.fileName,
+      mimeType: result.mimeType,
+      size: result.size,
+    };
+  }
+
   getMaxFileSize(): number {
     return this.maxFileSize;
   }

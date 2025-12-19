@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsUrl, IsNumber, IsBoolean, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsUrl, IsNumber, IsBoolean, IsEnum, ValidateIf } from 'class-validator';
 import { CompanySize } from '../../../entities/company.entity';
 
 export class CreateCompanyDto {
@@ -18,9 +18,10 @@ export class CreateCompanyDto {
   website?: string;
 
   @ApiPropertyOptional({ description: 'Company logo URL' })
+  @ValidateIf((o) => o.logo !== null && o.logo !== undefined)
   @IsUrl()
   @IsOptional()
-  logo?: string;
+  logo?: string | null;
 
   @ApiPropertyOptional({ description: 'Company industry' })
   @IsString()
@@ -65,9 +66,10 @@ export class UpdateCompanyDto {
   website?: string;
 
   @ApiPropertyOptional({ description: 'Company logo URL' })
+  @ValidateIf((o) => o.logo !== null && o.logo !== undefined)
   @IsUrl()
   @IsOptional()
-  logo?: string;
+  logo?: string | null;
 
   @ApiPropertyOptional({ description: 'Company industry' })
   @IsString()

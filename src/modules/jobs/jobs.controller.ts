@@ -10,6 +10,7 @@ import {
   UseGuards,
   ParseIntPipe,
   Req,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -127,8 +128,22 @@ export class JobsController {
     description: 'Jobs in the specified industry retrieved successfully',
     type: [JobResponseDto],
   })
-  async getJobsByIndustry(@Param('industry') industry: Industry): Promise<JobResponseDto[]> {
-    return this.jobsService.getJobsByIndustry(industry);
+  async getJobsByIndustry(@Param('industry') industryParam: string): Promise<JobResponseDto[]> {
+    // Decode URL parameter and find matching industry enum value
+    const decodedIndustry = decodeURIComponent(industryParam);
+    
+    // Try to find matching enum value (case-insensitive partial match)
+    const industryValues = Object.values(Industry);
+    const matchedIndustry = industryValues.find(
+      (val) => val.toLowerCase().includes(decodedIndustry.toLowerCase()) ||
+               decodedIndustry.toLowerCase().includes(val.toLowerCase().split(' ')[0])
+    );
+    
+    if (!matchedIndustry) {
+      throw new NotFoundException(`Industry "${decodedIndustry}" not found. Available industries: ${industryValues.join(', ')}`);
+    }
+    
+    return this.jobsService.getJobsByIndustry(matchedIndustry as Industry);
   }
 
   @Get('stats/industries')

@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: jobsmato_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jobsmato_db
+      POSTGRES_USER: jobsmato_user
+      POSTGRES_PASSWORD: jobsmato_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - jobsmato_dev_network
+
+  # Redis for caching and queues
+  redis:
+    image: redis:7-alpine
+    container_name: jobsmato_redis_dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - jobsmato_dev_network
+
+  # NestJS Backend API (Development)
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: jobsmato_backend-api:dev
+    container_name: jobsmato_api_dev
+    restart: unless-stopped
+    ports:
+      - "5003:5000"
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      
+      # Database
+      DATABASE_URL: postgresql://jobsmato_user:jobsmato_password@postgres:5432/jobsmato_db
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: jobsmato_user
+      DB_PASSWORD: jobsmato_password
+      DB_NAME: jobsmato_db
+      
+      # JWT
+      JWT_SECRET: dev-jwt-secret-key
+      JWT_EXPIRES_IN: 7d
+      JWT_REFRESH_SECRET: dev-refresh-secret-key
+      JWT_REFRESH_EXPIRES_IN: 30d
+      
+      # CORS
+      FRONTEND_URL: http://localhost:3000
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      
+      # Rate Limiting
+      THROTTLE_TTL: 60
+      THROTTLE_LIMIT: 1000
+      
+      # File Upload
+      MAX_FILE_SIZE: 10485760
+      ALLOWED_FILE_TYPES: "image/jpeg,image/png,image/gif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      
+      # Pagination
+      DEFAULT_PAGE_SIZE: 10
+      MAX_PAGE_SIZE: 100
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - jobsmato_dev_network
+    command: npm run start:dev
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  jobsmato_dev_network:
+    driver: bridge

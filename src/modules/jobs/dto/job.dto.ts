@@ -60,11 +60,10 @@ export class CreateJobDto {
   @IsEnum(Industry)
   industry?: Industry;
 
-  @ApiProperty({ example: 3, description: 'Experience level: 0=Entry, 1=Junior, 2=Mid, 3=Senior, 4=Executive', required: false })
+  @ApiProperty({ example: 3, description: 'Experience level (non-negative integer)', required: false })
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(4)
   experience?: number;
 
   @ApiProperty({ example: true, required: false })
@@ -86,6 +85,21 @@ export class CreateJobDto {
   @IsOptional()
   @IsDateString()
   applicationDeadline?: string;
+
+  @ApiProperty({ example: 'John Doe', description: 'HR/Recruiter name', required: false })
+  @IsOptional()
+  @IsString()
+  hrName?: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'HR contact number or email', required: false })
+  @IsOptional()
+  @IsString()
+  hrContact?: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'HR WhatsApp number', required: false })
+  @IsOptional()
+  @IsString()
+  hrWhatsapp?: string;
 }
 
 export class UpdateJobDto {
@@ -134,11 +148,10 @@ export class UpdateJobDto {
   @IsEnum(Industry)
   industry?: Industry;
 
-  @ApiProperty({ example: 3, description: 'Experience level: 0=Entry, 1=Junior, 2=Mid, 3=Senior, 4=Executive', required: false })
+  @ApiProperty({ example: 3, description: 'Experience level (non-negative integer)', required: false })
   @IsOptional()
   @IsInt()
   @Min(0)
-  @Max(4)
   experience?: number;
 
   @ApiProperty({ example: true, required: false })
@@ -165,6 +178,21 @@ export class UpdateJobDto {
   @IsOptional()
   @IsDateString()
   applicationDeadline?: string;
+
+  @ApiProperty({ example: 'John Doe', description: 'HR/Recruiter name', required: false })
+  @IsOptional()
+  @IsString()
+  hrName?: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'HR contact number or email', required: false })
+  @IsOptional()
+  @IsString()
+  hrContact?: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'HR WhatsApp number', required: false })
+  @IsOptional()
+  @IsString()
+  hrWhatsapp?: string;
 }
 
 export class JobSearchDto {
@@ -193,12 +221,11 @@ export class JobSearchDto {
   @IsEnum(Industry)
   industry?: Industry;
 
-  @ApiProperty({ example: 3, description: 'Experience level: 0=Entry, 1=Junior, 2=Mid, 3=Senior, 4=Executive', required: false })
+  @ApiProperty({ example: 3, description: 'Experience level (non-negative integer)', required: false })
   @IsOptional()
   @Transform(({ value }) => parseInt(value))
   @IsInt()
   @Min(0)
-  @Max(4)
   experience?: number;
 
   @ApiProperty({ example: 50000, required: false })
@@ -313,6 +340,15 @@ export class JobResponseDto {
 
   @ApiProperty({ example: '2023-12-31T23:59:59.000Z' })
   applicationDeadline: Date;
+
+  @ApiProperty({ example: 'John Doe', description: 'HR/Recruiter name', required: false })
+  hrName?: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'HR contact number or email', required: false })
+  hrContact?: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'HR WhatsApp number', required: false })
+  hrWhatsapp?: string;
 
   @ApiProperty()
   company: {

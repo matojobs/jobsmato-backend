@@ -52,10 +52,13 @@ export enum Industry {
   EDUCATION_EDTECH = 'Education & EdTech',
   MEDIA_ADVERTISING_PR = 'Media, Advertising & PR',
   AUTOMOBILE_MOBILITY = 'Automobile & Mobility',
+  ELECTRIC_MOBILITY = 'Electric Mobility',
   TELECOM_INTERNET_SERVICES = 'Telecom & Internet Services',
   FMCG = 'FMCG (Fast-Moving Consumer Goods)',
+  CONSUMER_ELECTRONICS = 'Consumer Electronics',
   MANUFACTURING_PRODUCTION = 'Manufacturing & Production',
   ENERGY_UTILITIES = 'Energy & Utilities',
+  RENEWABLE_ENERGY_STORAGE = 'Renewable Energy Storage',
   AGRICULTURE_AGROTECH = 'Agriculture & AgroTech',
   STARTUPS_ENTREPRENEURSHIP = 'Startups & Entrepreneurship',
   OTHER = 'Other',
@@ -116,7 +119,7 @@ export class Job {
   @Index()
   industry: Industry;
 
-  @ApiProperty({ example: 3, description: 'Experience level: 0=Entry, 1=Junior, 2=Mid, 3=Senior, 4=Executive', required: false })
+  @ApiProperty({ example: 3, description: 'Experience level (non-negative integer)', required: false })
   @Column({
     type: 'int',
     nullable: true,
@@ -183,6 +186,19 @@ export class Job {
   @ApiProperty({ example: '2023-12-01T00:00:00.000Z' })
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   postedDate: Date;
+
+  // HR Contact Information
+  @ApiProperty({ example: 'John Doe', description: 'HR/Recruiter name', required: false })
+  @Column({ nullable: true })
+  hrName: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'HR contact number or email', required: false })
+  @Column({ nullable: true })
+  hrContact: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'HR WhatsApp number', required: false })
+  @Column({ nullable: true })
+  hrWhatsapp: string;
 
   // Relations
   @ApiProperty({ example: 1 })

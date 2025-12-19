@@ -8,19 +8,20 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
+import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 
 import { User } from '../../entities/user.entity';
 import { Company } from '../../entities/company.entity';
-import { JobSeekerProfile } from '../../entities/job-seeker-profile.entity';
 import { PasswordResetToken } from '../../entities/password-reset-token.entity';
 import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Company, JobSeekerProfile, PasswordResetToken]),
+    TypeOrmModule.forFeature([User, Company, PasswordResetToken]),
     PassportModule,
     EmailModule,
     JwtModule.registerAsync({
@@ -37,8 +38,10 @@ import { EmailModule } from '../email/email.module';
     AuthService,
     JwtStrategy,
     LocalStrategy,
+    GoogleStrategy,
     JwtAuthGuard,
     LocalAuthGuard,
+    GoogleAuthGuard,
     RolesGuard,
   ],
   exports: [AuthService, JwtAuthGuard, RolesGuard],

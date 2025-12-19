@@ -69,3 +69,4 @@ export class BulkUpload {
   @JoinColumn({ name: 'adminId' })
   admin: any;
 }
+

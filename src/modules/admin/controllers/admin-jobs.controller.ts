@@ -67,3 +67,6 @@ export class AdminJobsController {
     return this.adminJobsService.bulkJobAction(body.action, body.jobIds, body.adminNotes);
   }
 }
+
+
+

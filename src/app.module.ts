@@ -18,6 +18,8 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { EmailModule } from './modules/email/email.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { FilesModule } from './modules/files/files.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -48,6 +50,9 @@ import { AdminModule } from './modules/admin/admin.module';
     // Event emitter
     EventEmitterModule.forRoot(),
 
+    // Common module (logging, error handling)
+    CommonModule,
+
     // Feature modules
     AuthModule,
     JobsModule,
@@ -57,6 +62,7 @@ import { AdminModule } from './modules/admin/admin.module';
     UploadModule,
     EmailModule,
     AdminModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

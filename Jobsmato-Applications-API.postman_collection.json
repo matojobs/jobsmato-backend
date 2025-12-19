@@ -1,0 +1,568 @@
+{
+	"info": {
+		"_postman_id": "jobsmato-applications-api",
+		"name": "Jobsmato - Job Applications API",
+		"description": "Complete API collection for Jobsmato job applications endpoints. All endpoints require JWT authentication.\n\n**Base URL:** https://api.jobsmato.com/api\n\n**Setup Instructions:**\n1. Import this collection into Postman\n2. Set the `base_url` variable (default: https://api.jobsmato.com/api)\n3. Get your JWT token from the login endpoint\n4. Set the `auth_token` variable with your JWT token\n5. All requests will automatically use the token",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "jobsmato-backend"
+	},
+	"item": [
+		{
+			"name": "1. Apply for a Job",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"if (pm.response.code === 201) {",
+							"    const response = pm.response.json();",
+							"    pm.collectionVariables.set(\"application_id\", response.id);",
+							"    pm.collectionVariables.set(\"job_id\", response.job.id);",
+							"    console.log(\"Application created with ID:\", response.id);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{auth_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"jobId\": 10,\n  \"resume\": \"https://drive.google.com/file/resume.pdf\",\n  \"coverLetter\": \"I am very interested in this position and believe my skills align perfectly with your requirements.\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/applications",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"applications"
+					]
+				},
+				"description": "Submit a job application for a specific job posting.\n\n**Role Required:** JOB_SEEKER\n\n**Request Body:**\n- `jobId` (number, required) - ID of the job to apply for\n- `resume` (string, optional) - URL to resume file\n- `coverLetter` (string, optional) - Cover letter text\n\n**Response:**\n- `201 Created` - Application submitted successfully\n- `404 Not Found` - Job not found\n- `409 Conflict` - Already applied for this job"
+			},
+			"response": []
+		},
+		{
+			"name": "2. Get User's Applications",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{auth_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/applications",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"applications"
+					]
+				},
+				"description": "Retrieve all job applications submitted by the authenticated user.\n\n**Role Required:** Any authenticated user (returns only their own applications)\n\n**Response:**\n- `200 OK` - Returns array of applications\n- Returns empty array `[]` if user has no applications"
+			},
+			"response": []
+		},
+		{
+			"name": "3. Get Applications for a Job",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{auth_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/applications/job/:jobId",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"applications",
+						"job",
+						":jobId"
+					],
+					"variable": [
+						{
+							"key": "jobId",
+							"value": "10",
+							"description": "ID of the job"
+						}
+					]
+				},
+				"description": "Retrieve all applications for a specific job. Only accessible by the job owner.\n\n**Role Required:** EMPLOYER (must own the job)\n\n**URL Parameters:**\n- `jobId` (number, required) - ID of the job\n\n**Response:**\n- `200 OK` - Returns array of applications for the job\n- `403 Forbidden` - User is not the job owner\n- `404 Not Found` - Job not found"
+			},
+			"response": []
+		},
+		{
+			"name": "4. Get Application by ID",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{auth_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/applications/:id",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"applications",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "{{application_id}}",
+							"description": "Application ID"
+						}
+					]
+				},
+				"description": "Retrieve a specific application by its ID.\n\n**Role Required:** Any authenticated user (can view own applications or applications for jobs they own)\n\n**URL Parameters:**\n- `id` (number, required) - Application ID\n\n**Response:**\n- `200 OK` - Returns application details\n- `403 Forbidden` - User is not the applicant or job owner\n- `404 Not Found` - Application not found"
+			},
+			"response": []
+		},
+		{
+			"name": "5. Update Application Status",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{auth_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"status\": \"shortlisted\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/applications/:id/status",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"applications",
+						":id",
+						"status"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "{{application_id}}",
+							"description": "Application ID"
+						}
+					]
+				},
+				"description": "Update the status of a job application. Only accessible by the job owner.\n\n**Role Required:** EMPLOYER (must own the job)\n\n**URL Parameters:**\n- `id` (number, required) - Application ID\n\n**Request Body:**\n- `status` (string, required) - New status value\n  - Valid values: `pending`, `reviewing`, `shortlisted`, `interview`, `rejected`, `accepted`, `withdrawn`\n\n**Response:**\n- `200 OK` - Status updated successfully\n- `400 Bad Request` - Invalid status value\n- `403 Forbidden` - User is not the job owner\n- `404 Not Found` - Application not found"
+			},
+			"response": []
+		},
+		{
+			"name": "6. Withdraw Application",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{auth_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/applications/:id",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"applications",
+						":id"
+					],
+					"variable": [
+						{
+							"key": "id",
+							"value": "{{application_id}}",
+							"description": "Application ID"
+						}
+					]
+				},
+				"description": "Withdraw/delete a job application. Only the applicant can withdraw their own application.\n\n**Role Required:** JOB_SEEKER (can only withdraw own applications)\n\n**URL Parameters:**\n- `id` (number, required) - Application ID\n\n**Response:**\n- `200 OK` - Application withdrawn successfully (no response body)\n- `403 Forbidden` - User is not the applicant\n- `404 Not Found` - Application not found"
+			},
+			"response": []
+		},
+		{
+			"name": "Examples - Status Updates",
+			"item": [
+				{
+					"name": "Mark as Reviewing",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{auth_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"reviewing\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/applications/:id/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"applications",
+								":id",
+								"status"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{application_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark as Shortlisted",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{auth_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"shortlisted\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/applications/:id/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"applications",
+								":id",
+								"status"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{application_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark as Interview",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{auth_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"interview\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/applications/:id/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"applications",
+								":id",
+								"status"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{application_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Application",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{auth_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"rejected\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/applications/:id/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"applications",
+								":id",
+								"status"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{application_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Application",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{auth_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"accepted\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/applications/:id/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"applications",
+								":id",
+								"status"
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{application_id}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Example requests for updating application status to different values."
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Auto-set base URL if not already set",
+					"if (!pm.collectionVariables.get(\"base_url\")) {",
+					"    pm.collectionVariables.set(\"base_url\", \"https://api.jobsmato.com/api\");",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test script",
+					"pm.test(\"Response time is less than 5000ms\", function () {",
+					"    pm.expect(pm.response.responseTime).to.be.below(5000);",
+					"});",
+					"",
+					"// Check for authentication errors",
+					"if (pm.response.code === 401) {",
+					"    pm.test(\"Authentication failed - Check your auth_token variable\", function () {",
+					"        pm.expect.fail(\"Invalid or missing JWT token. Please set the auth_token variable.\");",
+					"    });",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "https://api.jobsmato.com/api",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "",
+			"type": "string",
+			"description": "JWT authentication token. Get this from the login endpoint."
+		},
+		{
+			"key": "application_id",
+			"value": "",
+			"type": "string",
+			"description": "Application ID (auto-set when creating an application)"
+		},
+		{
+			"key": "job_id",
+			"value": "",
+			"type": "string",
+			"description": "Job ID (auto-set when creating an application)"
+		}
+	]
+}
+
+

@@ -28,30 +28,38 @@ export class JobsService {
   ) {}
 
   async create(createJobDto: CreateJobDto, userId: number): Promise<JobResponseDto> {
-    // Get user's company
-    const company = await this.companyRepository.findOne({
-      where: { userId },
-      relations: ['user'],
-    });
+    // Get user's company without user relation to avoid schema mismatch
+    const company = await this.companyRepository
+      .createQueryBuilder('company')
+      .where('company.userId = :userId', { userId })
+      .getOne();
 
     if (!company) {
       throw new ForbiddenException('You must have a company profile to post jobs');
     }
 
-    // Generate slug from title
-    const slug = this.generateSlug(createJobDto.title);
-
-    // Check if slug already exists
-    const existingJob = await this.jobRepository.findOne({ where: { slug } });
+    // Check if same company already has a job with same title and location
+    const existingJob = await this.jobRepository.findOne({
+      where: {
+        companyId: company.id,
+        title: createJobDto.title,
+        location: createJobDto.location,
+      },
+    });
     if (existingJob) {
-      throw new BadRequestException('A job with this title already exists');
+      throw new BadRequestException('A job with this title already exists for this location');
     }
 
+    // Generate slug from title and company ID, ensuring uniqueness
+    const slug = await this.generateUniqueSlug(createJobDto.title, company.id);
+
+    // Create job - always set status to ACTIVE by default for new job postings
+    // This ensures all newly created jobs are immediately visible
     const job = this.jobRepository.create({
       ...createJobDto,
       slug,
       companyId: company.id,
-      status: JobStatus.ACTIVE,
+      status: JobStatus.ACTIVE, // Always activate new jobs by default (overrides any status in DTO)
     });
 
     const savedJob = await this.jobRepository.save(job);
@@ -205,14 +213,32 @@ export class JobsService {
       throw new ForbiddenException('You can only update your own jobs');
     }
 
-    // Update slug if title changed
-    if (updateJobDto.title && updateJobDto.title !== job.title) {
-      const newSlug = this.generateSlug(updateJobDto.title);
-      const existingJob = await this.jobRepository.findOne({ where: { slug: newSlug } });
+    // Update slug if title or location changed
+    const titleChanged = updateJobDto.title && updateJobDto.title !== job.title;
+    const locationChanged = updateJobDto.location && updateJobDto.location !== job.location;
+    
+    if (titleChanged || locationChanged) {
+      const newTitle = updateJobDto.title || job.title;
+      const newLocation = updateJobDto.location || job.location;
+      
+      // Check if same company already has a job with same title and location
+      const existingJob = await this.jobRepository.findOne({
+        where: {
+          companyId: job.companyId,
+          title: newTitle,
+          location: newLocation,
+        },
+      });
+      
       if (existingJob && existingJob.id !== id) {
-        throw new BadRequestException('A job with this title already exists');
+        throw new BadRequestException('A job with this title already exists for this location');
       }
-      updateJobDto['slug'] = newSlug;
+      
+      // Update slug if title changed, ensuring uniqueness
+      if (titleChanged) {
+        const newSlug = await this.generateUniqueSlug(newTitle, job.companyId);
+        updateJobDto['slug'] = newSlug;
+      }
     }
 
     await this.jobRepository.update(id, updateJobDto);
@@ -438,11 +464,28 @@ export class JobsService {
     }));
   }
 
-  private generateSlug(title: string): string {
-    return title
+  private generateSlug(title: string, companyId?: number): string {
+    const baseSlug = title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
+    
+    // Append company ID to ensure uniqueness across companies
+    return companyId ? `${baseSlug}-${companyId}` : baseSlug;
+  }
+
+  private async generateUniqueSlug(title: string, companyId: number): Promise<string> {
+    let baseSlug = this.generateSlug(title, companyId);
+    let slug = baseSlug;
+    let counter = 1;
+
+    // Check if slug exists and append counter until unique
+    while (await this.jobRepository.findOne({ where: { slug } })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+
+    return slug;
   }
 
   private formatJobResponse(job: Job): JobResponseDto {

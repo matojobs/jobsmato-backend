@@ -54,7 +54,6 @@ export class AdminUsersService {
     const queryBuilder = this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.company', 'company')
-      .leftJoinAndSelect('user.jobSeekerProfile', 'jobSeekerProfile')
       .orderBy(`user.${sortBy}`, sortOrder.toUpperCase() as 'ASC' | 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -89,7 +88,7 @@ export class AdminUsersService {
   async getUser(id: number): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id },
-      relations: ['company', 'jobSeekerProfile'],
+      relations: ['company'],
     });
 
     if (!user) {

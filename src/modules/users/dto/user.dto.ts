@@ -1,9 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEnum, IsArray, IsBoolean } from 'class-validator';
-import { UserRole } from '../../../entities/user.entity';
-import { JobType } from '../../../entities/job.entity';
+import { IsString, IsOptional, IsEnum, IsArray, IsBoolean, IsInt, Min, Max, ValidateNested, IsObject } from 'class-validator';
+import { Type } from 'class-transformer';
+import { UserRole, LanguageProficiency, LanguageWithProficiency } from '../../../entities/user.entity';
+import { JobType, Industry } from '../../../entities/job.entity';
 
 export class UpdateProfileDto {
+  // Basic User Fields
   @ApiProperty({ example: 'John', required: false })
   @IsOptional()
   @IsString()
@@ -23,6 +25,17 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  // Personal Information
+  @ApiProperty({ example: '1990-01-15', required: false })
+  @IsOptional()
+  @IsString()
+  dateOfBirth?: string;
+
+  @ApiProperty({ example: 'male', enum: ['male', 'female', 'other'], required: false })
+  @IsOptional()
+  @IsEnum(['male', 'female', 'other'])
+  gender?: 'male' | 'female' | 'other';
 
   @ApiProperty({ example: 'Software developer with 5 years experience', required: false })
   @IsOptional()
@@ -48,9 +61,8 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsBoolean()
   onboardingComplete?: boolean;
-}
 
-export class UpdateJobSeekerProfileDto {
+  // Job Seeker Profile Fields (only used when role is job_seeker)
   @ApiProperty({ example: 'https://example.com/resume.pdf', required: false })
   @IsOptional()
   @IsString()
@@ -67,6 +79,34 @@ export class UpdateJobSeekerProfileDto {
   @IsString({ each: true })
   skills?: string[];
 
+  @ApiProperty({ example: ['JavaScript', 'Python', 'Java'], required: false })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  technicalSkills?: string[];
+
+  @ApiProperty({ example: ['Communication', 'Leadership', 'Teamwork'], required: false })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  functionalSkills?: string[];
+
+  // Professional Details
+  @ApiProperty({ example: 'Google Inc.', required: false })
+  @IsOptional()
+  @IsString()
+  currentCompany?: string;
+
+  @ApiProperty({ example: 'Senior Software Engineer', required: false })
+  @IsOptional()
+  @IsString()
+  currentJobTitle?: string;
+
+  @ApiProperty({ example: '500000', required: false })
+  @IsOptional()
+  @IsString()
+  currentCTC?: string;
+
   @ApiProperty({ example: '5 years of software development experience', required: false })
   @IsOptional()
   @IsString()
@@ -76,6 +116,22 @@ export class UpdateJobSeekerProfileDto {
   @IsOptional()
   @IsString()
   education?: string;
+
+  // Education Details
+  @ApiProperty({ example: 'Computer Science', required: false })
+  @IsOptional()
+  @IsString()
+  specialization?: string;
+
+  @ApiProperty({ example: 'Stanford University', required: false })
+  @IsOptional()
+  @IsString()
+  university?: string;
+
+  @ApiProperty({ example: '2020', required: false })
+  @IsOptional()
+  @IsString()
+  yearOfPassing?: string;
 
   @ApiProperty({ example: ['AWS Certified Developer', 'Google Cloud Professional'], required: false })
   @IsOptional()
@@ -114,6 +170,63 @@ export class UpdateJobSeekerProfileDto {
   @IsOptional()
   @IsBoolean()
   isOpenToWork?: boolean;
+
+  // Experience Type (numeric: 0+)
+  @ApiProperty({ 
+    example: 0, 
+    description: 'Experience level (non-negative integer)', 
+    required: false 
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  experienceType?: number;
+
+  // Languages Known with Proficiency
+  @ApiProperty({ 
+    example: [
+      { language: 'English', proficiency: 'Excellent English' },
+      { language: 'Hindi', proficiency: 'Very Good English' }
+    ], 
+    required: false 
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LanguageWithProficiencyDto)
+  languages?: LanguageWithProficiency[];
+
+  // Industry
+  @ApiProperty({ example: Industry.INFORMATION_TECHNOLOGY, enum: Industry, required: false })
+  @IsOptional()
+  @IsEnum(Industry)
+  industry?: Industry;
+
+  // Assets
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  hasBike?: boolean;
+
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  @IsBoolean()
+  hasDrivingLicense?: boolean;
+}
+
+class LanguageWithProficiencyDto {
+  @ApiProperty({ example: 'English' })
+  @IsString()
+  language: string;
+
+  @ApiProperty({ 
+    example: LanguageProficiency.EXCELLENT_ENGLISH, 
+    enum: LanguageProficiency, 
+    required: false 
+  })
+  @IsOptional()
+  @IsEnum(LanguageProficiency)
+  proficiency?: LanguageProficiency;
 }
 
 export class CompleteOnboardingDto {

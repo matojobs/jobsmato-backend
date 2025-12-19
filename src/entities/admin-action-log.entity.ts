@@ -58,3 +58,4 @@ export class AdminActionLog {
   @JoinColumn({ name: 'adminId' })
   admin: any;
 }
+

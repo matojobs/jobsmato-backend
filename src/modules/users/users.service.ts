@@ -2,23 +2,88 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
-import { JobSeekerProfile } from '../../entities/job-seeker-profile.entity';
-import { UpdateProfileDto, UpdateJobSeekerProfileDto, CompleteOnboardingDto } from './dto/user.dto';
+import { UpdateProfileDto, CompleteOnboardingDto } from './dto/user.dto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @InjectRepository(JobSeekerProfile)
-    private jobSeekerProfileRepository: Repository<JobSeekerProfile>,
   ) {}
 
   async findOne(id: number): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-      relations: ['company', 'jobSeekerProfile'],
-    });
+    // Use QueryBuilder with explicit column selection to avoid schema mismatch
+    // Exclude googleId as it doesn't exist in production database
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.company', 'company')
+      .select([
+        'user.id',
+        'user.email',
+        'user.password',
+        'user.firstName',
+        'user.lastName',
+        'user.role',
+        'user.status',
+        'user.avatar',
+        'user.phone',
+        'user.location',
+        'user.dateOfBirth',
+        'user.gender',
+        'user.bio',
+        'user.linkedin',
+        'user.github',
+        'user.website',
+        'user.resume',
+        'user.coverLetter',
+        'user.skills',
+        'user.technicalSkills',
+        'user.functionalSkills',
+        'user.currentCompany',
+        'user.currentJobTitle',
+        'user.currentCTC',
+        'user.experience',
+        'user.education',
+        'user.specialization',
+        'user.university',
+        'user.yearOfPassing',
+        'user.certifications',
+        'user.portfolio',
+        'user.availability',
+        'user.salaryExpectation',
+        'user.preferredJobTypes',
+        'user.preferredLocations',
+        'user.isOpenToWork',
+        'user.experienceType',
+        'user.languages',
+        'user.industry',
+        'user.hasBike',
+        'user.hasDrivingLicense',
+        'user.emailVerified',
+        'user.onboardingComplete',
+        'user.lastLoginAt',
+        'user.loginCount',
+        'user.isActive',
+        'user.isVerified',
+        'user.verificationToken',
+        'user.verificationExpiresAt',
+        'user.createdAt',
+        'user.updatedAt',
+        'company.id',
+        'company.name',
+        'company.slug',
+        'company.description',
+        'company.website',
+        'company.logo',
+        'company.industry',
+        'company.size',
+        'company.location',
+        'company.foundedYear',
+        'company.isVerified',
+        'company.userId',
+      ])
+      .where('user.id = :id', { id })
+      .getOne();
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -30,41 +95,6 @@ export class UsersService {
   async updateProfile(userId: number, updateProfileDto: UpdateProfileDto): Promise<User> {
     await this.userRepository.update(userId, updateProfileDto);
     return this.findOne(userId);
-  }
-
-  async updateJobSeekerProfile(
-    userId: number,
-    updateJobSeekerProfileDto: UpdateJobSeekerProfileDto,
-  ): Promise<JobSeekerProfile> {
-    const profile = await this.jobSeekerProfileRepository.findOne({
-      where: { userId },
-    });
-
-    if (!profile) {
-      throw new NotFoundException('Job seeker profile not found');
-    }
-
-    await this.jobSeekerProfileRepository.update(profile.id, updateJobSeekerProfileDto);
-    const updatedProfile = await this.jobSeekerProfileRepository.findOne({ where: { userId } });
-    
-    if (!updatedProfile) {
-      throw new NotFoundException('Job seeker profile not found after update');
-    }
-    
-    return updatedProfile;
-  }
-
-  async getJobSeekerProfile(userId: number): Promise<JobSeekerProfile> {
-    const profile = await this.jobSeekerProfileRepository.findOne({
-      where: { userId },
-      relations: ['user'],
-    });
-
-    if (!profile) {
-      throw new NotFoundException('Job seeker profile not found');
-    }
-
-    return profile;
   }
 
   async completeOnboarding(userId: number, completeOnboardingDto: CompleteOnboardingDto): Promise<User> {

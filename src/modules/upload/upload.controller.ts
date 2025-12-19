@@ -4,12 +4,14 @@ import {
   Delete,
   Get,
   Param,
+  Query,
   UseInterceptors,
   UploadedFile,
   UseGuards,
   BadRequestException,
   NotFoundException,
   Inject,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -23,6 +25,7 @@ import {
 import { UploadService, UploadResult } from './upload.service';
 import { LocalUploadService } from './local-upload.service';
 import { OAuthDriveUploadService } from './oauth-drive-upload.service';
+import { CloudinaryService } from './cloudinary.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../entities/user.entity';
@@ -33,7 +36,8 @@ import { User } from '../../entities/user.entity';
 @ApiBearerAuth()
 export class UploadController {
   constructor(
-    @Inject('UploadService') private readonly uploadService: UploadService | LocalUploadService | OAuthDriveUploadService
+    @Inject('UploadService') private readonly uploadService: UploadService | LocalUploadService | OAuthDriveUploadService,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   @Post('file')
@@ -149,7 +153,7 @@ export class UploadController {
 
   @Post('company-logo')
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload a company logo' })
+  @ApiOperation({ summary: 'Upload a company logo (uses Cloudinary if configured, otherwise falls back to Google Drive)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     description: 'Company logo image to upload',
@@ -159,6 +163,10 @@ export class UploadController {
         file: {
           type: 'string',
           format: 'binary',
+        },
+        useCloudinary: {
+          type: 'boolean',
+          description: 'Force use Cloudinary (default: true if configured)',
         },
       },
     },
@@ -171,19 +179,49 @@ export class UploadController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async uploadCompanyLogo(
     @UploadedFile() file: Express.Multer.File,
-    @CurrentUser() user: User,
-  ): Promise<{ success: boolean; data: UploadResult }> {
+    @Query('useCloudinary') useCloudinary?: string,
+    @CurrentUser() user?: User,
+  ): Promise<{ success: boolean; data: UploadResult | any }> {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
 
     // Validate that it's an image file
-    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
     if (!allowedImageTypes.includes(file.mimetype)) {
-      throw new BadRequestException('Only JPEG, PNG, and GIF images are allowed for company logos');
+      throw new BadRequestException('Only JPEG, PNG, GIF, and WebP images are allowed for company logos');
     }
 
+    // Check if Cloudinary is configured and should be used
+    const shouldUseCloudinary = useCloudinary !== 'false' && 
+      process.env.CLOUDINARY_CLOUD_NAME && 
+      process.env.CLOUDINARY_API_KEY && 
+      process.env.CLOUDINARY_API_SECRET;
+
+    if (shouldUseCloudinary) {
+      // Use Cloudinary for image upload
+      const cloudinaryResult = await this.cloudinaryService.uploadCompanyLogo(file);
+      
+      return {
+        success: true,
+        data: {
+          fileId: cloudinaryResult.publicId,
+          fileName: file.originalname,
+          fileUrl: cloudinaryResult.secureUrl,
+          mimeType: file.mimetype,
+          size: cloudinaryResult.bytes,
+          // Additional Cloudinary-specific fields
+          publicId: cloudinaryResult.publicId,
+          secureUrl: cloudinaryResult.secureUrl,
+          width: cloudinaryResult.width,
+          height: cloudinaryResult.height,
+          format: cloudinaryResult.format,
+        },
+      };
+    }
+
+    // Fallback to existing upload service (Google Drive)
     const result = await this.uploadService.uploadFile(file, 'Company Logos');
     
     return {
@@ -260,6 +298,112 @@ export class UploadController {
       };
     } catch (error) {
       throw new NotFoundException('File not found');
+    }
+  }
+
+  @Post('google-drive')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Upload a file to Google Drive with optional folder ID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'File to upload to Google Drive',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+        folderId: {
+          type: 'string',
+          description: 'Optional Google Drive folder ID to upload to',
+          example: '1Vy45PqTpaDiNlV8T1SGIy7ZND29E4zhl',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'File uploaded successfully to Google Drive',
+    schema: {
+      type: 'object',
+      properties: {
+        fileId: { type: 'string' },
+        webViewLink: { type: 'string' },
+        webContentLink: { type: 'string', nullable: true },
+        thumbnailLink: { type: 'string', nullable: true },
+        name: { type: 'string' },
+        mimeType: { type: 'string' },
+        size: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid file, file too large, or invalid folder ID' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 500, description: 'Upload failed (may fallback to local storage)' })
+  async uploadToGoogleDrive(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() request: any,
+    @CurrentUser() user: User,
+  ): Promise<{
+    fileId: string;
+    webViewLink: string;
+    webContentLink?: string;
+    thumbnailLink?: string;
+    name: string;
+    mimeType: string;
+    size: number;
+  }> {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+
+    // Extract folderId from form data
+    const folderId = request.body?.folderId || undefined;
+
+    try {
+      // Check if uploadService has uploadFileToFolder method (Google Drive services)
+      if (typeof (this.uploadService as any).uploadFileToFolder === 'function') {
+        const result = await (this.uploadService as any).uploadFileToFolder(
+          file,
+          folderId,
+        );
+        return result;
+      } else {
+        // Fallback: use regular upload method
+        console.warn('Google Drive upload not available, using fallback method');
+        const result = await this.uploadService.uploadFile(file, 'Jobsmato Uploads');
+        return {
+          fileId: result.fileId,
+          webViewLink: result.fileUrl,
+          webContentLink: result.fileUrl,
+          thumbnailLink: file.mimetype.startsWith('image/') ? result.fileUrl : undefined,
+          name: result.fileName,
+          mimeType: result.mimeType,
+          size: result.size,
+        };
+      }
+    } catch (error) {
+      console.error('Google Drive upload error:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      // Try fallback to regular upload
+      try {
+        console.log('Attempting fallback upload...');
+        const result = await this.uploadService.uploadFile(file, 'Jobsmato Uploads');
+        return {
+          fileId: result.fileId,
+          webViewLink: result.fileUrl,
+          webContentLink: result.fileUrl,
+          thumbnailLink: file.mimetype.startsWith('image/') ? result.fileUrl : undefined,
+          name: result.fileName,
+          mimeType: result.mimeType,
+          size: result.size,
+        };
+      } catch (fallbackError) {
+        throw new BadRequestException('File upload failed. Please try again.');
+      }
     }
   }
 

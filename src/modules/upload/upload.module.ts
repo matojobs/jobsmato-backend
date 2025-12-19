@@ -4,12 +4,14 @@ import { UploadController } from './upload.controller';
 import { UploadService } from './upload.service';
 import { LocalUploadService } from './local-upload.service';
 import { OAuthDriveUploadService } from './oauth-drive-upload.service';
+import { CloudinaryService } from './cloudinary.service';
+import { CloudinaryController } from './cloudinary.controller';
 import * as fs from 'fs';
 import * as path from 'path';
 
 @Module({
   imports: [ConfigModule],
-  controllers: [UploadController],
+  controllers: [UploadController, CloudinaryController],
   providers: [
     {
       provide: 'UploadService',
@@ -41,7 +43,8 @@ import * as path from 'path';
     UploadService,
     LocalUploadService,
     OAuthDriveUploadService,
+    CloudinaryService,
   ],
-  exports: ['UploadService'],
+  exports: ['UploadService', CloudinaryService],
 })
 export class UploadModule {}

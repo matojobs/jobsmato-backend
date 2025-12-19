@@ -67,3 +67,6 @@ export class AdminCompaniesController {
     return this.adminCompaniesService.verifyCompany(id);
   }
 }
+
+
+

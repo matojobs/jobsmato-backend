@@ -34,6 +34,18 @@ export class JobApplication {
   @Column({ type: 'text', nullable: true })
   coverLetter: string;
 
+  @ApiProperty({ example: 'John Doe', description: 'Candidate full name for this application', required: false })
+  @Column({ name: 'candidatename', nullable: true })
+  candidateName?: string;
+
+  @ApiProperty({ example: 'john@example.com', description: 'Candidate email for this application', required: false })
+  @Column({ name: 'candidateemail', nullable: true })
+  candidateEmail?: string;
+
+  @ApiProperty({ example: '+1234567890', description: 'Candidate phone number for this application', required: false })
+  @Column({ name: 'candidatephone', nullable: true })
+  candidatePhone?: string;
+
   @ApiProperty({ example: ApplicationStatus.PENDING, enum: ApplicationStatus })
   @Column({
     type: 'enum',
