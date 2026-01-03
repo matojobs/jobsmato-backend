@@ -155,3 +155,8 @@ uploads/
 logs/
 *.log
 *.log.gz
+
+# Docker build artifacts
+*.tar.gz
+backups/
+*.sql
