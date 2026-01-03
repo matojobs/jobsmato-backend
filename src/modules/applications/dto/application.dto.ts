@@ -53,7 +53,11 @@ export class ApplicationResponseDto {
   @ApiProperty({ example: 'I am very interested in this position...', required: false })
   coverLetter?: string;
 
-  @ApiProperty({ example: 'https://example.com/resume.pdf', required: false })
+  @ApiProperty({ 
+    example: 'resume_1764663588598_Resume.pdf', 
+    description: 'Resume filename (extracted from fileUrl after upload). Use this filename for download API: GET /api/files/download/resume/:filename',
+    required: false 
+  })
   resume?: string;
 
   @ApiProperty({ 

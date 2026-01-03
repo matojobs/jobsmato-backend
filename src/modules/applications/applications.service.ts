@@ -425,6 +425,38 @@ export class ApplicationsService {
     return applications.map((application) => this.formatApplicationResponse(application));
   }
 
+  /**
+   * Extract filename from various path formats
+   * Handles: 
+   * - Local paths: "filename.docx", "/uploads/Resumes/filename.docx", "Resumes/filename.docx"
+   * - Google Drive URLs: Returns full URL (frontend can use it directly)
+   * - Other URLs: Returns full URL (frontend can use it directly)
+   */
+  private extractFilename(resumePath: string | null | undefined): string | undefined {
+    if (!resumePath) return undefined;
+    
+    // Handle Google Drive URLs and other external URLs
+    // Return the full URL so frontend can use it directly
+    // Download API only works with local files, so external URLs should be returned as-is
+    if (resumePath.startsWith('http://') || resumePath.startsWith('https://')) {
+      return resumePath;
+    }
+    
+    // Handle local paths
+    // Remove leading slashes and normalize
+    const normalized = resumePath.replace(/^\/+/, '').replace(/\\/g, '/');
+    
+    // Remove query parameters if any
+    const withoutQuery = normalized.split('?')[0];
+    
+    // Extract filename (last part after slash)
+    const parts = withoutQuery.split('/');
+    const filename = parts[parts.length - 1];
+    
+    // Return filename if valid, otherwise return original path
+    return filename && filename.length > 0 ? filename : resumePath;
+  }
+
   private formatApplicationResponse(application: JobApplication): ApplicationResponseDto {
     const user = application.user;
     
@@ -432,6 +464,11 @@ export class ApplicationsService {
     const candidateName = application.candidateName;
     const candidateEmail = application.candidateEmail;
     const candidatePhone = application.candidatePhone;
+    
+    // Extract filename from resume path/URL for download API compatibility
+    const resumeFilename = application.resume 
+      ? this.extractFilename(application.resume) 
+      : undefined;
     
     // Handle missing user gracefully - return minimal user info if user not found
     // This prevents crashes when a user is deleted but their application still exists
@@ -447,7 +484,7 @@ export class ApplicationsService {
         userId: application.userId,
         status: application.status,
         coverLetter: application.coverLetter || undefined,
-        resume: application.resume || undefined,
+        resume: resumeFilename,
         appliedAt: application.createdAt.toISOString(),
         createdAt: application.createdAt.toISOString(),
         updatedAt: application.updatedAt.toISOString(),
@@ -530,7 +567,7 @@ export class ApplicationsService {
       userId: application.userId,
       status: application.status,
       coverLetter: application.coverLetter || undefined,
-      resume: application.resume || undefined,
+      resume: resumeFilename,
       appliedAt: application.createdAt.toISOString(),
       createdAt: application.createdAt.toISOString(),
       updatedAt: application.updatedAt.toISOString(),

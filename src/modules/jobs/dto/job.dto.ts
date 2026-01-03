@@ -169,6 +169,12 @@ export class UpdateJobDto {
   @IsBoolean()
   isFeatured?: boolean;
 
+  // Alias for isFeatured (backward compatibility with frontend)
+  @ApiProperty({ example: false, required: false, description: 'Alias for isFeatured' })
+  @IsOptional()
+  @IsBoolean()
+  featured?: boolean;
+
   @ApiProperty({ example: JobStatus.ACTIVE, enum: JobStatus, required: false })
   @IsOptional()
   @IsEnum(JobStatus)
@@ -250,14 +256,29 @@ export class JobSearchDto {
   @IsBoolean()
   isFeatured?: boolean;
 
+  @ApiProperty({ example: 'active', enum: ['active', 'paused', 'closed', 'draft'], required: false, description: 'Filter by job status' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
   @ApiProperty({ example: 1, required: false })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const num = parseInt(value, 10);
+    return isNaN(num) ? value : num;
+  })
   @IsNumber()
   @Min(1)
   page?: number;
 
   @ApiProperty({ example: 10, required: false })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    const num = parseInt(value, 10);
+    return isNaN(num) ? value : num;
+  })
   @IsNumber()
   @Min(1)
   @Max(100)

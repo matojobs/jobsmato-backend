@@ -7,6 +7,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Readable } from 'stream';
+import { google } from 'googleapis';
+import { ConfigService } from '@nestjs/config';
 import { User, UserRole } from '../../entities/user.entity';
 import { JobApplication } from '../../entities/job-application.entity';
 import { Company } from '../../entities/company.entity';
@@ -16,6 +19,7 @@ import { Job } from '../../entities/job.entity';
 export class FilesService {
   private readonly uploadDir = path.join(process.cwd(), 'uploads');
   private readonly logger = new Logger(FilesService.name);
+  private drive: any;
 
   constructor(
     @InjectRepository(JobApplication)
@@ -26,7 +30,126 @@ export class FilesService {
     private companyRepository: Repository<Company>,
     @InjectRepository(Job)
     private jobRepository: Repository<Job>,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.initializeGoogleDrive();
+  }
+
+  private getOAuthCredentials(): { clientId: string; clientSecret: string } | null {
+    const credentialsPath = path.join(process.cwd(), 'credentials.json');
+    if (!fs.existsSync(credentialsPath)) {
+      return null;
+    }
+    
+    try {
+      const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+      if (credentials.installed) {
+        return {
+          clientId: credentials.installed.client_id,
+          clientSecret: credentials.installed.client_secret,
+        };
+      } else if (credentials.web) {
+        return {
+          clientId: credentials.web.client_id,
+          clientSecret: credentials.web.client_secret,
+        };
+      }
+    } catch (error) {
+      this.logger.warn('Failed to parse OAuth credentials:', error);
+    }
+    return null;
+  }
+
+  private async initializeGoogleDrive() {
+    try {
+      // Try OAuth first (same as upload service)
+      const credentialsPath = path.join(process.cwd(), 'credentials.json');
+      const tokenPath = path.join(process.cwd(), 'token.json');
+
+      if (fs.existsSync(credentialsPath) && fs.existsSync(tokenPath)) {
+        // Use OAuth (same as upload service)
+        const oauthCreds = this.getOAuthCredentials();
+        if (oauthCreds) {
+          const token = JSON.parse(fs.readFileSync(tokenPath, 'utf8'));
+          const auth = new google.auth.OAuth2(oauthCreds.clientId, oauthCreds.clientSecret);
+          auth.setCredentials(token);
+          
+          // Set up automatic token refresh
+          auth.on('tokens', (tokens) => {
+            if (tokens.refresh_token) {
+              token.refresh_token = tokens.refresh_token;
+            }
+            token.access_token = tokens.access_token;
+            token.expiry_date = tokens.expiry_date;
+            token.expires_in = tokens.expiry_date
+              ? Math.floor((tokens.expiry_date - Date.now()) / 1000)
+              : 3600;
+            
+            try {
+              fs.writeFileSync(tokenPath, JSON.stringify(token, null, 2));
+              this.logger.log('OAuth token automatically refreshed for downloads');
+            } catch (error) {
+              this.logger.warn('Failed to save refreshed token:', error);
+            }
+          });
+
+          this.drive = google.drive({ version: 'v3', auth });
+          this.logger.log('Google Drive API initialized with OAuth for file downloads');
+          return;
+        }
+      }
+
+      // Fallback to service account if OAuth not available
+      const clientEmail = this.configService.get<string>('GOOGLE_DRIVE_CLIENT_EMAIL');
+      const privateKey = this.configService.get<string>('GOOGLE_DRIVE_PRIVATE_KEY');
+      
+      if (clientEmail && privateKey) {
+        const auth = new google.auth.GoogleAuth({
+          credentials: {
+            client_email: clientEmail,
+            private_key: privateKey.replace(/\\n/g, '\n'),
+          },
+          scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        });
+
+        this.drive = google.drive({ version: 'v3', auth });
+        this.logger.log('Google Drive API initialized with service account for file downloads');
+        return;
+      }
+
+      // No credentials available
+      this.logger.warn('No Google Drive credentials found. Local file downloads only.');
+      this.drive = null;
+    } catch (error) {
+      this.logger.warn('Failed to initialize Google Drive API. Local file downloads only.', error);
+      this.drive = null;
+    }
+  }
+
+  /**
+   * Extract Google Drive file ID from URL
+   * Handles formats:
+   * - https://drive.google.com/file/d/FILE_ID/view?usp=drivesdk
+   * - https://drive.google.com/open?id=FILE_ID
+   */
+  private extractGoogleDriveFileId(url: string): string | null {
+    if (!url) return null;
+
+    // Format 1: /file/d/FILE_ID/view
+    const match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (match1) return match1[1];
+
+    // Format 2: /open?id=FILE_ID
+    const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (match2) return match2[1];
+
+    // If it's already just a file ID (no URL)
+    if (/^[a-zA-Z0-9_-]+$/.test(url)) {
+      return url;
+    }
+
+    return null;
+  }
 
   async checkDownloadPermission(user: User, filename: string): Promise<boolean> {
     // Admin can download any resume
@@ -120,6 +243,82 @@ export class FilesService {
   }
 
   async getResumeFile(filename: string): Promise<{
+    stream: Readable;
+    filename: string;
+    contentType: string;
+    size: number;
+  }> {
+    // Check if it's a Google Drive URL or file ID
+    const decodedFilename = decodeURIComponent(filename);
+    const googleDriveFileId = this.extractGoogleDriveFileId(decodedFilename);
+
+    if (googleDriveFileId) {
+      if (!this.drive) {
+        this.logger.error('Google Drive API not initialized. Missing credentials?');
+        throw new NotFoundException('Google Drive service not available. Please check server configuration.');
+      }
+      // Download from Google Drive
+      return await this.getResumeFromGoogleDrive(googleDriveFileId);
+    }
+
+    // Try local file system
+    return await this.getResumeFromLocalFile(filename);
+  }
+
+  private async getResumeFromGoogleDrive(fileId: string): Promise<{
+    stream: Readable;
+    filename: string;
+    contentType: string;
+    size: number;
+  }> {
+    try {
+      // Get file metadata
+      const fileMetadata = await this.drive.files.get({
+        fileId: fileId,
+        fields: 'id,name,mimeType,size',
+      });
+
+      const fileName = fileMetadata.data.name || 'resume.pdf';
+      const mimeType = fileMetadata.data.mimeType || 'application/pdf';
+      const fileSize = parseInt(fileMetadata.data.size) || 0;
+
+      // Download file content
+      const response = await this.drive.files.get(
+        {
+          fileId: fileId,
+          alt: 'media',
+        },
+        { responseType: 'stream' }
+      );
+
+      return {
+        stream: response.data,
+        filename: fileName,
+        contentType: mimeType,
+        size: fileSize,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to download file from Google Drive: ${error.message}`, error.stack);
+      
+      // Provide more specific error messages
+      if (error.code === 404 || error.message?.includes('File not found')) {
+        throw new NotFoundException('Resume file not found in Google Drive');
+      }
+      if (error.code === 403 || error.message?.includes('Permission denied')) {
+        this.logger.error(`Permission denied for file ${fileId}. Service account may not have access.`);
+        throw new NotFoundException('Resume file not accessible. Service account may not have permission.');
+      }
+      if (error.code === 401 || error.message?.includes('Invalid Credentials')) {
+        this.logger.error('Google Drive authentication failed. Check credentials.');
+        throw new NotFoundException('Google Drive authentication failed. Please contact administrator.');
+      }
+      
+      // Generic error
+      throw new NotFoundException(`Failed to download resume from Google Drive: ${error.message}`);
+    }
+  }
+
+  private async getResumeFromLocalFile(filename: string): Promise<{
     stream: fs.ReadStream;
     filename: string;
     contentType: string;

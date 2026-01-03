@@ -99,6 +99,13 @@ services:
       GOOGLE_CLIENT_ID: "YOUR_GOOGLE_CLIENT_ID_HERE"
       GOOGLE_CLIENT_SECRET: "YOUR_GOOGLE_CLIENT_SECRET_HERE"
       GOOGLE_CALLBACK_URL: "https://api.jobsmato.com/api/auth/google/callback"
+      
+      # Google Drive Service Account (for file downloads)
+      # Get these from Google Cloud Console > IAM & Admin > Service Accounts
+      # Create a service account, download JSON key, extract client_email and private_key
+      # For private_key, replace actual newlines with \n
+      GOOGLE_DRIVE_CLIENT_EMAIL: ""
+      GOOGLE_DRIVE_PRIVATE_KEY: ""
     depends_on:
       postgres:
         condition: service_healthy

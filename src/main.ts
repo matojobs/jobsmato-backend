@@ -80,6 +80,18 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Register Express route for resume downloads with Google Drive URLs
+  // NestJS wildcard routes don't handle URLs with colons (https:) properly
+  const expressApp = app.getHttpAdapter().getInstance();
+  
+  // This middleware catches requests to /api/files/download/resume/* before NestJS routing
+  // and ensures they're handled by the controller
+  expressApp.use('/api/files/download/resume', (req: any, res: any, next: any) => {
+    // Mark that this route should be handled
+    req._resumeDownloadRoute = true;
+    next();
+  });
+
   const port = process.env.PORT || 5000;
   await app.listen(port);
   

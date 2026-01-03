@@ -38,6 +38,18 @@ export class JobsService {
       throw new ForbiddenException('You must have a company profile to post jobs');
     }
 
+    // Check active job limit (max 10 active jobs per employer)
+    const activeJobsCount = await this.jobRepository.count({
+      where: {
+        companyId: company.id,
+        status: JobStatus.ACTIVE,
+      },
+    });
+
+    if (activeJobsCount >= 10) {
+      throw new BadRequestException('Maximum 10 active jobs allowed. Please pause or close an existing job before creating a new one.');
+    }
+
     // Check if same company already has a job with same title and location
     const existingJob = await this.jobRepository.findOne({
       where: {
@@ -213,6 +225,27 @@ export class JobsService {
       throw new ForbiddenException('You can only update your own jobs');
     }
 
+    // Map 'featured' alias to 'isFeatured' if provided
+    if (updateJobDto.featured !== undefined && updateJobDto.isFeatured === undefined) {
+      updateJobDto.isFeatured = updateJobDto.featured;
+      delete updateJobDto.featured;
+    }
+
+    // Check active job limit when updating status to 'active'
+    if (updateJobDto.status === JobStatus.ACTIVE) {
+      const activeJobsCount = await this.jobRepository.count({
+        where: {
+          companyId: job.companyId,
+          status: JobStatus.ACTIVE,
+          id: Not(id), // Exclude current job
+        },
+      });
+
+      if (activeJobsCount >= 10) {
+        throw new BadRequestException('Maximum 10 active jobs allowed. Please pause or close another job first.');
+      }
+    }
+
     // Update slug if title or location changed
     const titleChanged = updateJobDto.title && updateJobDto.title !== job.title;
     const locationChanged = updateJobDto.location && updateJobDto.location !== job.location;
@@ -343,6 +376,7 @@ export class JobsService {
       maxSalary,
       isRemote,
       isFeatured,
+      status,
       page = 1,
       limit = 10,
       sortBy = 'createdAt',
@@ -390,6 +424,11 @@ export class JobsService {
       queryBuilder.andWhere('job.isFeatured = :isFeatured', { isFeatured });
     }
 
+    // Status filter
+    if (status) {
+      queryBuilder.andWhere('job.status = :status', { status });
+    }
+
     // Salary range
     if (minSalary !== undefined) {
       queryBuilder.andWhere('CAST(SUBSTRING(job.salary FROM \'[0-9]+\') AS INTEGER) >= :minSalary', {
@@ -403,8 +442,19 @@ export class JobsService {
       });
     }
 
-    // Sorting
-    queryBuilder.orderBy(`job.${sortBy}`, sortOrder.toUpperCase() as 'ASC' | 'DESC');
+    // Sorting: Active jobs first, then by date (newest first)
+    // Use addSelect to create computed columns, then order by them
+    queryBuilder
+      .addSelect(
+        `CASE WHEN job.status = 'active' THEN 0 ELSE 1 END`,
+        'status_priority'
+      )
+      .addSelect(
+        `COALESCE(job.postedDate, job.createdAt)`,
+        'sort_date'
+      )
+      .orderBy('status_priority', 'ASC')
+      .addOrderBy('sort_date', 'DESC');
 
     // Pagination
     const skip = (page - 1) * limit;
@@ -512,6 +562,9 @@ export class JobsService {
       updatedAt: job.updatedAt,
       postedDate: job.postedDate,
       applicationDeadline: job.applicationDeadline,
+      hrName: job.hrName,
+      hrContact: job.hrContact,
+      hrWhatsapp: job.hrWhatsapp,
       company: job.company ? {
         id: job.company.id,
         name: job.company.name,
