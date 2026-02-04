@@ -32,8 +32,23 @@ export class OAuthDriveUploadService {
     'https://www.googleapis.com/auth/drive'
   ];
 
+  private initialized = false;
+
   constructor(private configService: ConfigService) {
-    this.initializeGoogleDrive();
+    // Initialize only if credentials exist, otherwise skip silently
+    const credentialsPath = path.join(process.cwd(), 'credentials.json');
+    if (fs.existsSync(credentialsPath)) {
+      try {
+        this.initializeGoogleDrive();
+        this.initialized = true;
+      } catch (error) {
+        console.warn('Google Drive OAuth initialization failed, will use fallback storage:', error.message);
+        this.initialized = false;
+      }
+    } else {
+      console.log('Google Drive OAuth credentials not found, service will not be available');
+      this.initialized = false;
+    }
   }
 
   private getCredentials(): { clientId: string; clientSecret: string } {
@@ -143,7 +158,9 @@ export class OAuthDriveUploadService {
       console.log('✅ Google Drive API initialized with OAuth');
     } catch (error) {
       console.error('Failed to initialize Google Drive:', error);
-      throw new InternalServerErrorException('Google Drive service initialization failed');
+      // Don't throw - let the service be available but mark as not initialized
+      // The upload module will fall back to LocalUploadService
+      this.initialized = false;
     }
   }
 
@@ -151,6 +168,9 @@ export class OAuthDriveUploadService {
     file: Express.Multer.File,
     folderName: string = 'Jobsmato Uploads'
   ): Promise<UploadResult> {
+    if (!this.initialized || !this.drive) {
+      throw new InternalServerErrorException('Google Drive service is not initialized. Please configure OAuth credentials.');
+    }
     try {
       // Validate file size
       if (file.size > this.maxFileSize) {
@@ -214,6 +234,9 @@ export class OAuthDriveUploadService {
     mimeType: string;
     size: number;
   }> {
+    if (!this.initialized || !this.drive) {
+      throw new InternalServerErrorException('Google Drive service is not initialized. Please configure OAuth credentials.');
+    }
     try {
       // Validate file size
       if (file.size > this.maxFileSize) {
@@ -287,6 +310,9 @@ export class OAuthDriveUploadService {
   }
 
   async deleteFile(fileId: string): Promise<void> {
+    if (!this.initialized || !this.drive) {
+      throw new InternalServerErrorException('Google Drive service is not initialized. Please configure OAuth credentials.');
+    }
     try {
       await this.drive.files.delete({
         fileId: fileId,
@@ -298,6 +324,9 @@ export class OAuthDriveUploadService {
   }
 
   async getFileInfo(fileId: string): Promise<any> {
+    if (!this.initialized || !this.drive) {
+      throw new InternalServerErrorException('Google Drive service is not initialized. Please configure OAuth credentials.');
+    }
     try {
       const response = await this.drive.files.get({
         fileId: fileId,
@@ -311,6 +340,9 @@ export class OAuthDriveUploadService {
   }
 
   private async createSubfolderIfNotExists(folderName: string): Promise<string> {
+    if (!this.initialized || !this.drive) {
+      throw new InternalServerErrorException('Google Drive service is not initialized. Please configure OAuth credentials.');
+    }
     try {
       // Check if subfolder already exists in the target folder
       const response = await this.drive.files.list({

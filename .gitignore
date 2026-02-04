@@ -158,5 +158,10 @@ logs/
 
 # Docker build artifacts
 *.tar.gz
+*.tar
 backups/
 *.sql
+
+# SSH keys (keep local only)
+ssh-keys/id_ed25519*
+ssh-keys/*_rsa

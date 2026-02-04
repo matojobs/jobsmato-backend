@@ -15,27 +15,34 @@ This guide covers the complete deployment process for the Jobsmato backend, incl
 ## 🚀 Quick Start
 
 ### Prerequisites
-- AWS EC2 instance (Amazon Linux 2023)
-- PEM key for SSH access
-- Docker and Docker Compose installed
-- Domain name (optional, for Let's Encrypt)
+- Server accessible via Cloudflare Tunnel (`ssh.jobsmato.com`)
+- SSH key: `E:\git ssh key\id_ed25519_github`
+- cloudflared installed and in PATH
+- Docker Desktop installed (for building images)
+- PowerShell (for running deployment scripts)
 
 ### One-Command Deployment
-```bash
-# Deploy with Docker Compose (Recommended)
-./deploy-with-compose.sh
+```powershell
+# Basic deployment (no migrations)
+.\deploy.ps1
 
-# Or deploy with manual Docker run
-./deploy-to-ec2.sh
+# Deployment with database migrations
+.\deploy-with-migration.ps1
+
+# Skip build (use existing image)
+.\deploy.ps1 -SkipBuild
 ```
+
+**Note**: For detailed setup instructions, see [DEPLOYMENT-SETUP-NEW-SERVER.md](./DEPLOYMENT-SETUP-NEW-SERVER.md)
 
 ## 🏗️ Infrastructure Overview
 
 ### Current Production Setup
-- **Server**: AWS EC2 (15.134.85.184)
-- **OS**: Amazon Linux 2023
-- **Web Server**: Nginx 1.28.0 (reverse proxy)
-- **SSL**: Self-signed certificate
+- **Server**: Accessible via `ssh.jobsmato.com` (Cloudflare Tunnel)
+- **SSH Access**: Via Cloudflare Tunnel on port 2222 (local) → 22 (server)
+- **SSH User**: `jobsmato`
+- **Web Server**: Nginx (reverse proxy)
+- **SSL**: Configured via Cloudflare/domain
 - **Backend**: NestJS in Docker container
 - **Database**: PostgreSQL in Docker container
 - **Cache**: Redis in Docker container
@@ -50,60 +57,62 @@ Internet → Nginx (443/80) → Backend Container (5004) → Database Container 
 
 ## 🛠️ Deployment Methods
 
-### Method 1: Docker Compose (Recommended)
+### Method 1: Automated PowerShell Script (Recommended)
 
 **Advantages:**
-- Automatic service orchestration
-- Built-in networking
-- Easy scaling and management
-- Environment variable management
+- Fully automated deployment
+- Automatic Cloudflare Tunnel management
+- Built-in error handling and verification
+- Support for database migrations
 
 **Deployment:**
-```bash
-./deploy-with-compose.sh
+```powershell
+# Basic deployment
+.\deploy.ps1
+
+# With database migrations
+.\deploy-with-migration.ps1
 ```
 
-**Manual Steps:**
-```bash
-# 1. Build and upload image
+**What it does:**
+1. Starts Cloudflare Tunnel proxy automatically
+2. Builds Docker image locally
+3. Uploads image and docker-compose.yml via SCP
+4. Deploys via Docker Compose on server
+5. Runs database migrations (if using migration script)
+6. Verifies deployment
+7. Cleans up tunnel proxy
+
+### Method 2: Manual Deployment
+
+**Steps:**
+```powershell
+# 1. Start Cloudflare Tunnel (in separate terminal)
+cd "E:\git ssh key"
+$env:Path += ";$env:USERPROFILE"
+cloudflared.exe access tcp --hostname ssh.jobsmato.com --url tcp://localhost:2222
+
+# 2. Build and save image
 docker build --platform linux/amd64 -t jobsmato-backend:latest .
 docker save jobsmato-backend:latest | gzip > jobsmato-backend.tar.gz
-scp -i jobsmato_backend.pem jobsmato-backend.tar.gz ec2-user@15.134.85.184:/home/ec2-user/
 
-# 2. Upload docker-compose.yml
-scp -i jobsmato_backend.pem docker-compose.yml ec2-user@15.134.85.184:/home/ec2-user/
+# 3. Upload files
+cd "E:\git ssh key"
+scp -i ".\id_ed25519_github" -P 2222 ..\jobsmato-backend\jobsmato-backend.tar.gz jobsmato@localhost:/home/jobsmato/
+scp -i ".\id_ed25519_github" -P 2222 ..\jobsmato-backend\docker-compose.yml jobsmato@localhost:/home/jobsmato/
 
-# 3. Deploy on server
-ssh -i jobsmato_backend.pem ec2-user@15.134.85.184
-docker-compose up -d --build
-```
-
-### Method 2: Manual Docker Run
-
-**Advantages:**
-- Full control over container configuration
-- Custom networking setup
-- Direct environment variable management
-
-**Deployment:**
-```bash
-./deploy-to-ec2.sh
-```
-
-**Manual Steps:**
-```bash
-# 1. Build and upload image
-docker build --platform linux/amd64 -t jobsmato-backend:latest .
-docker save jobsmato-backend:latest | gzip > jobsmato-backend.tar.gz
-scp -i jobsmato_backend.pem jobsmato-backend.tar.gz ec2-user@15.134.85.184:/home/ec2-user/
-
-# 2. Deploy on server
-ssh -i jobsmato_backend.pem ec2-user@15.134.85.184
+# 4. Deploy on server
+ssh -i ".\id_ed25519_github" -p 2222 jobsmato@localhost
 docker load < jobsmato-backend.tar.gz
-docker network create jobsmato_network
-docker run -d --name jobsmato-postgres --network jobsmato_network -e POSTGRES_DB=jobsmato_db -e POSTGRES_USER=jobsmato_user -e POSTGRES_PASSWORD=jobsmato_password postgres:15
-docker run -d --name jobsmato-redis --network jobsmato_network redis:7-alpine
-docker run -d --name jobsmato-backend --network jobsmato_network -p 5004:5000 -e DB_HOST=jobsmato-postgres jobsmato-backend:latest
+docker-compose down
+docker-compose up -d
+```
+
+### Method 3: Quick SSH Connection
+
+Use the helper script for easy SSH access:
+```powershell
+.\ssh-connect.ps1
 ```
 
 ## 🔒 SSL/HTTPS Setup
@@ -236,28 +245,31 @@ docker logs jobsmato_redis
 ```
 
 **Test API Endpoints:**
-```bash
-# Test HTTPS endpoint
-curl -k https://15.134.85.184/api/jobs
+```powershell
+# Connect via SSH first
+.\ssh-connect.ps1
 
-# Test CORS preflight
-curl -k -X OPTIONS https://15.134.85.184/api/jobs \
-  -H "Origin: https://jobsmato-frontend.vercel.app" \
-  -H "Access-Control-Request-Method: GET" \
-  -I
+# Then on server:
+curl http://localhost:5000/api/health
+curl http://localhost:5000/api/jobs
 
-# Test database connection
-curl -k https://15.134.85.184/api/health
+# Or test from external:
+curl https://api.jobsmato.com/api/health
+curl https://api.jobsmato.com/api/jobs
 ```
 
 **Network Diagnostics:**
-```bash
-# Check port availability
-sudo netstat -tlnp | grep :443
-sudo netstat -tlnp | grep :5004
+```powershell
+# Connect via SSH
+.\ssh-connect.ps1
 
-# Check SSL certificate
-openssl s_client -connect 15.134.85.184:443 -servername 15.134.85.184
+# Then on server:
+# Check port availability
+netstat -tlnp | grep :5000
+docker ps
+
+# Check container network
+docker network inspect jobsmato_network
 ```
 
 ## 🔄 Maintenance
@@ -279,7 +291,11 @@ openssl s_client -connect 15.134.85.184:443 -servername 15.134.85.184
 ### Backup Strategy
 
 **Database Backup:**
-```bash
+```powershell
+# Connect via SSH
+.\ssh-connect.ps1
+
+# Then on server:
 # Create backup
 docker exec jobsmato_postgres pg_dump -U jobsmato_user jobsmato_db > backup_$(date +%Y%m%d).sql
 
@@ -300,9 +316,13 @@ sudo cp -r /etc/ssl/private/jobsmato.key ~/
 ### Monitoring
 
 **Health Checks:**
-```bash
+```powershell
+# Connect via SSH
+.\ssh-connect.ps1
+
+# Then on server:
 # API health
-curl -k https://15.134.85.184/api/health
+curl http://localhost:5000/api/health
 
 # Database health
 docker exec jobsmato_postgres pg_isready -U jobsmato_user
@@ -312,14 +332,19 @@ docker exec jobsmato_redis redis-cli ping
 ```
 
 **Log Monitoring:**
-```bash
+```powershell
+# Connect via SSH
+.\ssh-connect.ps1
+
+# Then on server:
 # Real-time logs
 docker logs -f jobsmato_api
-sudo journalctl -u nginx -f
 
 # Error logs
 docker logs jobsmato_api 2>&1 | grep ERROR
-sudo journalctl -u nginx --since "1 hour ago" | grep error
+
+# Or from local machine (if tunnel is running):
+ssh -i "E:\git ssh key\id_ed25519_github" -p 2222 jobsmato@localhost "docker logs -f jobsmato_api"
 ```
 
 ## 📞 Support
@@ -333,6 +358,15 @@ For deployment issues:
 
 ---
 
-**Last Updated:** September 25, 2025
-**Version:** 1.0.0
+## 📚 Additional Resources
+
+- **New Server Setup**: See [DEPLOYMENT-SETUP-NEW-SERVER.md](./DEPLOYMENT-SETUP-NEW-SERVER.md) for detailed setup instructions
+- **SSH Connection**: Use `.\ssh-connect.ps1` for quick SSH access
+- **Cloudflare Tunnel**: See `E:\git ssh key\SSH_VIA_DOMAIN.md` for tunnel configuration
+
+---
+
+**Last Updated:** December 2025
+**Version:** 2.0.0
 **Status:** Production Ready ✅
+**Server:** ssh.jobsmato.com (Cloudflare Tunnel)

@@ -21,19 +21,17 @@ export class AppController {
   @Get('health')
   @ApiOperation({ summary: 'Detailed health check' })
   @ApiResponse({ status: 200, description: 'Detailed health status' })
-  getHealth(): { 
-    status: string; 
-    message: string; 
-    version: string; 
-    timestamp: string;
-    uptime: number;
-  } {
-    return {
-      status: 'healthy',
-      message: 'All systems operational',
-      version: '1.0.0',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-    };
+  @ApiResponse({ status: 503, description: 'Service unhealthy' })
+  async getHealth() {
+    const healthStatus = await this.appService.getHealthStatus();
+    
+    // Return 503 if service is degraded
+    if (healthStatus.status === 'degraded') {
+      // Note: In NestJS, we'd typically use HttpException, but for health checks
+      // we might want to return 200 with status field for monitoring tools
+      return healthStatus;
+    }
+    
+    return healthStatus;
   }
 }
