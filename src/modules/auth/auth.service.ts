@@ -181,16 +181,36 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto): Promise<AuthResponseDto> {
-    const { email, password } = loginDto;
-
-    const user = await this.validateUserCredentials(email, password);
+    const user = await this.validateUserCredentials(loginDto.email, loginDto.password);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
-
-    // Generate tokens
     const tokens = await this.generateTokens(user);
+    return {
+      ...tokens,
+      userId: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      onboardingComplete: user.onboardingComplete,
+    };
+  }
 
+  /**
+   * Login for recruiter portal only. Returns 401 if user is not a recruiter.
+   * Use this endpoint from the recruiter portal so admins/employers cannot get a token there.
+   */
+  async recruiterLogin(loginDto: LoginDto): Promise<AuthResponseDto> {
+    const user = await this.validateUserCredentials(loginDto.email, loginDto.password);
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    if (user.role !== UserRole.RECRUITER) {
+      throw new UnauthorizedException(
+        'Recruiter access required. Use the job portal or admin panel for your role.',
+      );
+    }
+    const tokens = await this.generateTokens(user);
     return {
       ...tokens,
       userId: user.id,
@@ -213,6 +233,7 @@ export class AuthService {
         'user.firstName',
         'user.lastName',
         'user.role',
+        'user.isActive',
         'user.onboardingComplete',
         'user.phone',
         'user.location',
@@ -248,6 +269,7 @@ export class AuthService {
         'user.firstName',
         'user.lastName',
         'user.role',
+        'user.isActive',
         'user.onboardingComplete',
         'user.phone',
         'user.location',
@@ -441,7 +463,8 @@ export class AuthService {
     const payload = { sub: user.id, email: user.email, role: user.role };
 
     // Different expiration times based on user role
-    const accessTokenExpiry = user.role === UserRole.JOB_SEEKER ? '7d' : '15m';
+    const accessTokenExpiry =
+      user.role === UserRole.JOB_SEEKER ? '7d' : user.role === UserRole.RECRUITER ? '8h' : '15m';
     const refreshTokenExpiry = user.role === UserRole.JOB_SEEKER ? '30d' : '7d';
 
     const [accessToken, refreshToken] = await Promise.all([

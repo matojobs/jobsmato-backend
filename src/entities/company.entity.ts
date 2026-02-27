@@ -117,4 +117,8 @@ export class Company {
 
   @OneToMany('CompanyReview', 'company')
   reviews: any[];
+
+  /** Members with access (owner/admin/member). Owner is also in userId above. */
+  @OneToMany('CompanyMember', 'company')
+  companyMembers: any[];
 }

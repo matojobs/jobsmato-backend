@@ -36,7 +36,7 @@ export class JobsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.EMPLOYER)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new job posting' })
   @ApiResponse({
@@ -44,7 +44,7 @@ export class JobsController {
     description: 'Job successfully created',
     type: JobResponseDto,
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only employers can post jobs' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only employers or recruiters can post jobs' })
   async create(
     @Body() createJobDto: CreateJobDto,
     @CurrentUser() user: User,
@@ -168,7 +168,7 @@ export class JobsController {
 
   @Get('my-jobs')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.EMPLOYER)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get employer\'s own jobs' })
   @ApiResponse({
@@ -185,7 +185,7 @@ export class JobsController {
       },
     },
   })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only employers can access this endpoint' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only employers or recruiters can access this endpoint' })
   async getMyJobs(@Query() searchDto: JobSearchDto, @CurrentUser() user: User) {
     return this.jobsService.getMyJobs(user.id, searchDto);
   }
@@ -215,7 +215,7 @@ export class JobsController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.EMPLOYER)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update job posting' })
   @ApiResponse({
@@ -235,7 +235,7 @@ export class JobsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.EMPLOYER)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete job posting' })
   @ApiResponse({

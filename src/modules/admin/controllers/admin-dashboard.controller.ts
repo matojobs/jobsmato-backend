@@ -60,13 +60,7 @@ export class AdminDashboardController {
   @ApiQuery({ name: 'days', required: false, type: Number, description: 'Number of days to analyze' })
   @ApiResponse({ status: 200, description: 'Application analytics retrieved successfully' })
   async getApplicationAnalytics(@Query('days') days: number = 30) {
-    // Placeholder - implement when Application entity is available
-    return {
-      applicationRates: [],
-      applicationStatus: [],
-      topJobs: [],
-      applicationTrends: [],
-    };
+    return this.adminDashboardService.getApplicationAnalytics(Number(days) || 30);
   }
 }
 

@@ -5,11 +5,11 @@ config();
 
 export default new DataSource({
   type: 'postgres',
-  host: 'localhost',
-  port: 5432,
-  username: 'jobsmato_user',
-  password: 'jobsmato_password',
-  database: 'jobsmato_db',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  username: process.env.DB_USERNAME || 'postgres',
+  password: process.env.DB_PASSWORD || 'password',
+  database: process.env.DB_NAME || 'jobsmato_db',
   entities: ['dist/src/entities/*.entity.js'],
   migrations: ['dist/src/migrations/*.js'],
   synchronize: false,

@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto, UpdateCompanyDto, CompanyResponseDto } from './dto/company.dto';
+import { AddCompanyMemberDto } from './dto/add-company-member.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -30,7 +31,7 @@ export class CompaniesController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.EMPLOYER, UserRole.ADMIN)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new company' })
   @ApiResponse({ status: 201, description: 'Company created successfully', type: CompanyResponseDto })
@@ -50,6 +51,16 @@ export class CompaniesController {
     return this.companiesService.findAll();
   }
 
+  @Get('my')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get companies the current user can manage (for company selector when posting jobs)' })
+  @ApiResponse({ status: 200, description: 'User\'s companies', type: [CompanyResponseDto] })
+  async getMyCompanies(@CurrentUser() user: User) {
+    return this.companiesService.getCompaniesForUser(user.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get company by ID' })
   @ApiResponse({ status: 200, description: 'Company retrieved successfully', type: CompanyResponseDto })
@@ -60,7 +71,7 @@ export class CompaniesController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.EMPLOYER, UserRole.ADMIN)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update company' })
   @ApiResponse({ status: 200, description: 'Company updated successfully', type: CompanyResponseDto })
@@ -76,7 +87,7 @@ export class CompaniesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.EMPLOYER, UserRole.ADMIN)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER, UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete company' })
   @ApiResponse({ status: 200, description: 'Company deleted successfully' })
@@ -84,5 +95,32 @@ export class CompaniesController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
     return this.companiesService.remove(id, user.id);
+  }
+
+  @Get(':id/members')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List company members' })
+  @ApiResponse({ status: 200, description: 'List of members with roles' })
+  @ApiResponse({ status: 403, description: 'No access to this company' })
+  async getMembers(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: User) {
+    return this.companiesService.getMembers(id, user.id);
+  }
+
+  @Post(':id/members')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER, UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a member to the company' })
+  @ApiResponse({ status: 201, description: 'Member added' })
+  @ApiResponse({ status: 400, description: 'Provide userId or email' })
+  @ApiResponse({ status: 403, description: 'Only owners/admins can add members' })
+  async addMember(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AddCompanyMemberDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.companiesService.addMember(id, user.id, dto);
   }
 }

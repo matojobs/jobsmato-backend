@@ -16,6 +16,12 @@ import { Transform } from 'class-transformer';
 import { JobType, JobStatus, Experience, Industry } from '../../../entities/job.entity';
 
 export class CreateJobDto {
+  @ApiProperty({ example: 1, description: 'Company to post the job under. Required when user has multiple companies (e.g. recruiters).', required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  companyId?: number;
+
   @ApiProperty({ example: 'Senior Software Engineer' })
   @IsString()
   @IsNotEmpty()

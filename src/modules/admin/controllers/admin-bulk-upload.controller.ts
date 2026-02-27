@@ -12,7 +12,10 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
+import { IsOptional, IsNumber, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 import { AdminBulkUploadService } from '../services/admin-bulk-upload.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AdminGuard } from '../guards/admin.guard';
@@ -20,6 +23,21 @@ import { AdminPermissionGuard, AdminPermission } from '../guards/admin-permissio
 import { AdminPermissions } from '../decorators/admin-permissions.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { User } from '../../../entities/user.entity';
+
+export class GetUploadHistoryQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20;
+}
 
 @ApiTags('admin-bulk-upload')
 @Controller('admin/jobs/bulk-upload')
@@ -62,15 +80,11 @@ export class AdminBulkUploadController {
   @AdminPermissions(AdminPermission.BULK_OPERATIONS)
   @UseGuards(AdminPermissionGuard)
   @ApiOperation({ summary: 'Get bulk upload history' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({ status: 200, description: 'Upload history retrieved' })
-  async getUploadHistory(@Query() query: any) {
-    // Placeholder implementation
-    return {
-      uploads: [],
-      total: 0,
-      page: 1,
-      limit: 20,
-    };
+  async getUploadHistory(@Query() query: GetUploadHistoryQueryDto) {
+    return this.adminBulkUploadService.getUploadHistory(query);
   }
 }
 

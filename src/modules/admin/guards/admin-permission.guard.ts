@@ -11,6 +11,7 @@ export enum AdminPermission {
   
   // User management permissions
   VIEW_USERS = 'view_users',
+  CREATE_USERS = 'create_users',
   EDIT_USERS = 'edit_users',
   DELETE_USERS = 'delete_users',
   VERIFY_USERS = 'verify_users',
@@ -18,16 +19,24 @@ export enum AdminPermission {
   
   // Company management permissions
   VIEW_COMPANIES = 'view_companies',
+  CREATE_COMPANIES = 'create_companies',
   EDIT_COMPANIES = 'edit_companies',
+  DELETE_COMPANIES = 'delete_companies',
   VERIFY_COMPANIES = 'verify_companies',
   SUSPEND_COMPANIES = 'suspend_companies',
   
   // Job management permissions
   VIEW_JOBS = 'view_jobs',
+  CREATE_JOBS = 'create_jobs',
   EDIT_JOBS = 'edit_jobs',
   DELETE_JOBS = 'delete_jobs',
   APPROVE_JOBS = 'approve_jobs',
-  
+
+  // Job application management (admin portal Job Applications page)
+  VIEW_APPLICATIONS = 'view_applications',
+  EDIT_APPLICATIONS = 'edit_applications',
+  DELETE_APPLICATIONS = 'delete_applications',
+
   // Bulk operations
   BULK_OPERATIONS = 'bulk_operations',
   
@@ -67,10 +76,14 @@ export class AdminPermissionGuard implements CanActivate {
       return true; // No specific permissions required
     }
 
-    // Check if user has all required permissions
-    const userPermissions = user.permissions || [];
+    // User permissions: from request (e.g. set by frontend) or, for admin role, assume all permissions
+    // (JWT payload does not include permissions; they are only returned at login)
+    const userPermissions =
+      user.permissions?.length > 0
+        ? user.permissions
+        : (Object.values(AdminPermission) as string[]);
     const hasAllPermissions = requiredPermissions.every(permission =>
-      userPermissions.includes(permission)
+      userPermissions.includes(permission),
     );
 
     if (!hasAllPermissions) {

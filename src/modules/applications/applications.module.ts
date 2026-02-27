@@ -7,12 +7,14 @@ import { Job } from '../../entities/job.entity';
 import { User } from '../../entities/user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { EmailModule } from '../email/email.module';
+import { CompaniesModule } from '../companies/companies.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([JobApplication, Job, User]),
     AuthModule,
     EmailModule,
+    CompaniesModule,
   ],
   controllers: [ApplicationsController],
   providers: [ApplicationsService],

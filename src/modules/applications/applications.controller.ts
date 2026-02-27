@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   ParseIntPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,6 +20,7 @@ import { ApplicationsService } from './applications.service';
 import {
   CreateApplicationDto,
   UpdateApplicationStatusDto,
+  UpdateRecruiterCallDto,
   ApplicationResponseDto,
 } from './dto/application.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -35,9 +37,9 @@ export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 
   @Post()
-  @Roles(UserRole.JOB_SEEKER)
-  @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Apply for a job' })
+  // Note: Recruiters use /api/applications via RecruiterController
+  // This endpoint is for job seekers only - check role in handler
   @ApiResponse({
     status: 201,
     description: 'Application submitted successfully',
@@ -49,6 +51,12 @@ export class ApplicationsController {
     @Body() createApplicationDto: CreateApplicationDto,
     @CurrentUser() user: User,
   ): Promise<ApplicationResponseDto> {
+    // Only job seekers can create applications via this endpoint
+    // Recruiters should use /api/recruiter/applications
+    if (user.role !== UserRole.JOB_SEEKER) {
+      throw new ForbiddenException('Only job seekers can apply for jobs. Recruiters should use /api/recruiter/applications');
+    }
+    
     return this.applicationsService.create(createApplicationDto, user.id);
   }
 
@@ -63,10 +71,28 @@ export class ApplicationsController {
     return this.applicationsService.findAll(user.id);
   }
 
-  @Get('job/:jobId')
-  @Roles(UserRole.EMPLOYER)
+  @Get('pending')
+  @Roles(UserRole.RECRUITER)
   @UseGuards(RolesGuard)
-  @ApiOperation({ summary: 'Get applications for a job' })
+  @ApiOperation({ summary: 'Get pending job applications for recruiter (no call date/status filled yet)' })
+  @ApiResponse({ status: 200, description: 'Pending applications for jobs recruiter has access to', type: [ApplicationResponseDto] })
+  async getPendingForRecruiter(@CurrentUser() user: User): Promise<ApplicationResponseDto[]> {
+    return this.applicationsService.getPendingJobApplicationsForRecruiter(user.id);
+  }
+
+  @Get('recruiter-work')
+  @Roles(UserRole.RECRUITER)
+  @UseGuards(RolesGuard)
+  @ApiOperation({ summary: 'Job portal applications recruiter has worked on (call details filled) – for Recruiter work / Candidates' })
+  @ApiResponse({ status: 200, description: 'Applications where recruiter filled call date/status', type: [ApplicationResponseDto] })
+  async getRecruiterWork(@CurrentUser() user: User): Promise<ApplicationResponseDto[]> {
+    return this.applicationsService.getRecruiterWorkJobApplications(user.id);
+  }
+
+  @Get('job/:jobId')
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER)
+  @UseGuards(RolesGuard)
+  @ApiOperation({ summary: 'Get applications for a job (employer or recruiter with access to job company)' })
   @ApiResponse({
     status: 200,
     description: 'Job applications retrieved successfully',
@@ -97,9 +123,9 @@ export class ApplicationsController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.EMPLOYER)
+  @Roles(UserRole.EMPLOYER, UserRole.RECRUITER)
   @UseGuards(RolesGuard)
-  @ApiOperation({ summary: 'Update application status' })
+  @ApiOperation({ summary: 'Update application status (employer or recruiter with access to job company)' })
   @ApiResponse({
     status: 200,
     description: 'Application status updated successfully',
@@ -113,6 +139,21 @@ export class ApplicationsController {
     @CurrentUser() user: User,
   ): Promise<ApplicationResponseDto> {
     return this.applicationsService.updateStatus(id, updateStatusDto, user.id);
+  }
+
+  @Patch(':id/recruiter-call')
+  @Roles(UserRole.RECRUITER)
+  @UseGuards(RolesGuard)
+  @ApiOperation({ summary: 'Recruiter: fill call date, call status, interested (Pending Applications)' })
+  @ApiResponse({ status: 200, description: 'Application updated', type: ApplicationResponseDto })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Application not found' })
+  async updateRecruiterCall(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateRecruiterCallDto,
+    @CurrentUser() user: User,
+  ): Promise<ApplicationResponseDto> {
+    return this.applicationsService.updateRecruiterCall(id, user.id, dto);
   }
 
   @Delete(':id')

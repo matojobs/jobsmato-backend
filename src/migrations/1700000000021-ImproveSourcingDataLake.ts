@@ -19,91 +19,33 @@ export class ImproveSourcingDataLake1700000000021 implements MigrationInterface 
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // ============================================
-    // 1. FIX PARTITIONED TABLE PRIMARY KEYS
+    // 1. IMPROVE PARTITIONED TABLE INDEXES
     // ============================================
-    // Change from composite PK (id, date) to single-column PK (id)
-    // Partition pruning still works via WHERE clause on partition key
+    // Note: PostgreSQL requires unique constraints/indexes on partitioned tables to include partition key
+    // The composite PK (id, assigned_date) already provides uniqueness and efficient lookups
+    // We just ensure assigned_date index exists for optimal partition pruning
     
-    // Drop existing applications table and recreate with single-column PK
-    await queryRunner.query(`
-      -- Create new applications table with single-column PK
-      CREATE TABLE sourcing.applications_new (
-        id BIGSERIAL NOT NULL,
-        candidate_id BIGINT NOT NULL,
-        recruiter_id INTEGER NOT NULL REFERENCES sourcing.recruiters(id),
-        job_role_id INTEGER NOT NULL REFERENCES sourcing.job_roles(id),
-        assigned_date DATE NOT NULL,
-        call_date DATE,
-        call_status SMALLINT,
-        interested SMALLINT,
-        selection_status SMALLINT,
-        joining_status SMALLINT,
-        notes TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        
-        CONSTRAINT applications_new_pkey PRIMARY KEY (id)
-      ) PARTITION BY RANGE (assigned_date);
-    `);
-
-    // Migrate data if applications table exists
+    // Ensure assigned_date index exists for partition pruning (if table exists)
     await queryRunner.query(`
       DO $$
       BEGIN
         IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'sourcing' AND tablename = 'applications') THEN
-          INSERT INTO sourcing.applications_new 
-          SELECT * FROM sourcing.applications;
+          -- Ensure assigned_date index exists for partition pruning
+          CREATE INDEX IF NOT EXISTS idx_applications_assigned_date 
+          ON sourcing.applications (assigned_date);
         END IF;
       END $$;
     `);
 
-    // Drop old table and rename new one
-    await queryRunner.query(`
-      DROP TABLE IF EXISTS sourcing.applications CASCADE;
-      ALTER TABLE sourcing.applications_new RENAME TO applications;
-    `);
-
-    // Recreate indexes on new table
-    await queryRunner.query(`
-      CREATE INDEX idx_applications_recruiter_call_date 
-      ON sourcing.applications (recruiter_id, call_date) 
-      INCLUDE (call_status, interested, selection_status, joining_status);
-      
-      CREATE INDEX idx_applications_candidate ON sourcing.applications (candidate_id);
-      CREATE INDEX idx_applications_job_role ON sourcing.applications (job_role_id);
-      CREATE INDEX idx_applications_joining_status 
-      ON sourcing.applications (joining_status, assigned_date) 
-      WHERE joining_status IS NOT NULL;
-      
-      CREATE INDEX idx_applications_interested 
-      ON sourcing.applications (interested, call_date) 
-      WHERE interested = 1;
-      
-      CREATE INDEX idx_applications_assigned_date ON sourcing.applications (assigned_date);
-    `);
-
-    // Fix raw_candidate_logs PK (if needed)
-    await queryRunner.query(`
-      DO $$
-      BEGIN
-        -- Check if raw table has composite PK
-        IF EXISTS (
-          SELECT 1 FROM pg_constraint 
-          WHERE conname = 'raw_candidate_logs_pkey' 
-          AND contype = 'p'
-        ) THEN
-          -- Drop composite PK constraint
-          ALTER TABLE sourcing.raw_candidate_logs DROP CONSTRAINT raw_candidate_logs_pkey;
-          
-          -- Add single-column PK
-          ALTER TABLE sourcing.raw_candidate_logs ADD CONSTRAINT raw_candidate_logs_pkey PRIMARY KEY (id);
-        END IF;
-      END $$;
-    `);
+    // Note: raw_candidate_logs already has composite PK (id, imported_at)
+    // No additional indexes needed - the PK provides efficient lookups
 
     // ============================================
     // 2. HARDEN PARTITION CREATION FUNCTION
     // ============================================
+    // Drop and recreate with new signature (advisory locks)
+    await queryRunner.query(`DROP FUNCTION IF EXISTS sourcing.create_monthly_partition(TEXT, DATE);`);
+    await queryRunner.query(`DROP FUNCTION IF EXISTS sourcing.create_monthly_partition(TEXT);`);
     await queryRunner.query(`
       CREATE OR REPLACE FUNCTION sourcing.create_monthly_partition(
         table_name TEXT,
@@ -284,27 +226,17 @@ export class ImproveSourcingDataLake1700000000021 implements MigrationInterface 
     // ============================================
     // 5. IMPROVE AUTOVACUUM SETTINGS
     // ============================================
-    await queryRunner.query(`
-      -- High-write partitioned tables: aggressive autovacuum
-      ALTER TABLE sourcing.applications SET (
-        autovacuum_vacuum_scale_factor = 0.02,
-        autovacuum_analyze_scale_factor = 0.01,
-        autovacuum_vacuum_cost_delay = 10,
-        autovacuum_vacuum_cost_limit = 2000
-      );
-      
-      ALTER TABLE sourcing.candidates SET (
-        autovacuum_vacuum_scale_factor = 0.05,
-        autovacuum_analyze_scale_factor = 0.02,
-        autovacuum_vacuum_cost_delay = 10
-      );
-      
-      -- Raw table: less frequent (immutable after insert)
-      ALTER TABLE sourcing.raw_candidate_logs SET (
-        autovacuum_vacuum_scale_factor = 0.1,
-        autovacuum_analyze_scale_factor = 0.05
-      );
-    `);
+    // Note: Autovacuum settings are commented out due to PostgreSQL configuration restrictions
+    // These should be set manually via postgresql.conf or ALTER TABLE after migration
+    // Recommended settings (set manually):
+    //   sourcing.applications: autovacuum_vacuum_scale_factor=0.02, autovacuum_analyze_scale_factor=0.01
+    //   sourcing.candidates: autovacuum_vacuum_scale_factor=0.05, autovacuum_analyze_scale_factor=0.02
+    //   sourcing.raw_candidate_logs: autovacuum_vacuum_scale_factor=0.1, autovacuum_analyze_scale_factor=0.05
+    //
+    // To set manually after migration:
+    //   ALTER TABLE sourcing.applications SET (autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.01);
+    //   ALTER TABLE sourcing.candidates SET (autovacuum_vacuum_scale_factor = 0.05, autovacuum_analyze_scale_factor = 0.02);
+    //   ALTER TABLE sourcing.raw_candidate_logs SET (autovacuum_vacuum_scale_factor = 0.1, autovacuum_analyze_scale_factor = 0.05);
 
     // ============================================
     // 6. DATA INTEGRITY GUARDRAILS
@@ -355,13 +287,13 @@ export class ImproveSourcingDataLake1700000000021 implements MigrationInterface 
       )
       RETURNS TABLE (
         candidate_id BIGINT,
-        exists BOOLEAN
+        candidate_exists BOOLEAN
       ) AS $$
       BEGIN
         RETURN QUERY
         SELECT 
           unnest(p_candidate_ids) as candidate_id,
-          EXISTS(SELECT 1 FROM sourcing.candidates WHERE id = unnest(p_candidate_ids)) as exists;
+          EXISTS(SELECT 1 FROM sourcing.candidates WHERE id = unnest(p_candidate_ids)) as candidate_exists;
       END;
       $$ LANGUAGE plpgsql;
     `);
@@ -415,10 +347,10 @@ export class ImproveSourcingDataLake1700000000021 implements MigrationInterface 
         RETURN QUERY
         SELECT
           s.schemaname::TEXT,
-          s.tablename::TEXT,
+          s.relname::TEXT as tablename,
           CASE 
             WHEN s.n_live_tup > 0 
-            THEN ROUND(100.0 * s.n_dead_tup / s.n_live_tup, 2)
+            THEN ROUND(100.0 * s.n_dead_tup / NULLIF(s.n_live_tup, 0), 2)
             ELSE 0
           END as dead_tuple_percent,
           s.n_dead_tup,
