@@ -9,6 +9,10 @@ export enum CallStatus {
   CONNECTED = 3,
   WRONG_NUMBER = 4,
   SWITCH_OFF = 5,
+  INCOMING_OFF = 6,
+  CALL_BACK = 7,
+  INVALID = 8,
+  OUT_OF_NETWORK = 9,
 }
 
 export enum InterestedStatus {
@@ -31,7 +35,7 @@ export enum JoiningStatus {
 }
 
 /**
- * String values as used by frontend
+ * String values as used by frontend (and API validation)
  */
 export const CallStatusString = {
   BUSY: 'Busy',
@@ -39,7 +43,25 @@ export const CallStatusString = {
   CONNECTED: 'Connected',
   WRONG_NUMBER: 'Wrong Number',
   SWITCH_OFF: 'Switch off',
+  SWITCHED_OFF: 'Switched Off',
+  INCOMING_OFF: 'Incoming Off',
+  CALL_BACK: 'Call Back',
+  INVALID: 'Invalid',
+  OUT_OF_NETWORK: 'Out of network',
 } as const;
+
+/** All allowed call status values for dropdowns and validation */
+export const CALL_STATUS_OPTIONS = [
+  CallStatusString.CONNECTED,
+  CallStatusString.RNR,
+  CallStatusString.BUSY,
+  CallStatusString.SWITCHED_OFF,
+  CallStatusString.INCOMING_OFF,
+  CallStatusString.CALL_BACK,
+  CallStatusString.INVALID,
+  CallStatusString.WRONG_NUMBER,
+  CallStatusString.OUT_OF_NETWORK,
+] as const;
 
 export const InterestedStatusString = {
   YES: 'Yes',

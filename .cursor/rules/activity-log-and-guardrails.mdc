@@ -1,0 +1,32 @@
+---
+description: Maintain activity log and follow project guard rails
+alwaysApply: true
+---
+
+# Activity Log & Guard Rails
+
+## Activity Log
+
+- **When:** After completing significant work (features, fixes, config, deployment, env). **Update proactively — do not wait for the user to remind you.** Add an entry at the end of the session or before finishing the task.
+- **Where:**
+  - **Deployments / production changes:** `docs/DEPLOYMENT-ACTIVITY-LOG.md` (date, what was deployed, files changed, API changes, breaking changes, testing checklist).
+  - **General dev / repo activity:** `docs/ACTIVITY_LOG.md` (date, what was done, files touched, why).
+- **Format:** Use a dated section (e.g. `## YYYY-MM-DD - Short title`) at the top of the log (below the intro), then brief bullets: what changed, files modified, any breaking or env changes.
+- **Rule:** Treat updating the activity log as part of completing the work. No reminder from the user should be needed.
+
+## Guard Rails
+
+1. **No breaking API changes without documentation**  
+   If you change request/response shape, required fields, or remove endpoints, document it in the deployment or activity log and call out breaking changes for the frontend.
+
+2. **Env and secrets**  
+   New or changed environment variables must be added to `env.example` with a short comment. Do not commit real secrets; use placeholders.
+
+3. **Database changes**  
+   Schema or migration changes belong in `DEPLOYMENT-ACTIVITY-LOG.md` when deployed; mention migration name and any rollback note.
+
+4. **Deployment**  
+   After deployment-related code or script changes, ensure `QUICK-DEPLOY.md` or `DEPLOYMENT-GUIDE.md` is updated if the steps change.
+
+5. **Errors and config**  
+   When fixing auth, redirects, or proxy (e.g. Google OAuth, trust proxy, callback URLs), document the fix and required config (e.g. Google Console redirect URIs) in the activity log.

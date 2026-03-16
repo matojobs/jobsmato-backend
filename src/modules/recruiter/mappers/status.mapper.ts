@@ -34,7 +34,15 @@ export class StatusMapper {
       case CallStatus.WRONG_NUMBER:
         return CallStatusString.WRONG_NUMBER;
       case CallStatus.SWITCH_OFF:
-        return CallStatusString.SWITCH_OFF;
+        return CallStatusString.SWITCHED_OFF;
+      case CallStatus.INCOMING_OFF:
+        return CallStatusString.INCOMING_OFF;
+      case CallStatus.CALL_BACK:
+        return CallStatusString.CALL_BACK;
+      case CallStatus.INVALID:
+        return CallStatusString.INVALID;
+      case CallStatus.OUT_OF_NETWORK:
+        return CallStatusString.OUT_OF_NETWORK;
       default:
         return null;
     }
@@ -100,7 +108,16 @@ export class StatusMapper {
       case CallStatusString.WRONG_NUMBER:
         return CallStatus.WRONG_NUMBER;
       case CallStatusString.SWITCH_OFF:
+      case CallStatusString.SWITCHED_OFF:
         return CallStatus.SWITCH_OFF;
+      case CallStatusString.INCOMING_OFF:
+        return CallStatus.INCOMING_OFF;
+      case CallStatusString.CALL_BACK:
+        return CallStatus.CALL_BACK;
+      case CallStatusString.INVALID:
+        return CallStatus.INVALID;
+      case CallStatusString.OUT_OF_NETWORK:
+        return CallStatus.OUT_OF_NETWORK;
       default:
         return null;
     }

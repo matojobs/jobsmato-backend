@@ -9,7 +9,7 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { CreateCandidateDto } from './dto/create-candidate.dto';
 import { CreateJobRoleDto } from './dto/create-job-role.dto';
-import { ApplicationQueryDto } from './dto/query-params.dto';
+import { ApplicationQueryDto, CandidateQueryDto } from './dto/query-params.dto';
 import { StatusMapper } from './mappers/status.mapper';
 import {
   ApplicationResponse,
@@ -26,6 +26,7 @@ import {
 } from './interfaces/dashboard.interface';
 import { CompaniesService } from '../companies/companies.service';
 import { ApplicationsService } from '../applications/applications.service';
+import { CreateApplicationWithCandidateDto } from './dto/create-application-with-candidate.dto';
 
 @Injectable()
 export class RecruiterService {
@@ -33,7 +34,7 @@ export class RecruiterService {
     private dataSource: DataSource,
     private companiesService: CompaniesService,
     private applicationsService: ApplicationsService,
-  ) {}
+  ) { }
 
   // ============================================
   // HELPER METHODS
@@ -333,9 +334,10 @@ export class RecruiterService {
   /**
    * Get candidates. When recruiterId is provided (recruiter portal), only return candidates
    * that have at least one application assigned to that recruiter.
+   * Optional search (name/phone/email) and filters: job_role_id, company_id, portal_id.
    */
   async getCandidates(
-    search?: string,
+    queryParams: CandidateQueryDto,
     recruiterId?: number,
   ): Promise<CandidateResponse[]> {
     const params: any[] = [];
@@ -352,10 +354,37 @@ export class RecruiterService {
       `;
       params.push(recruiterId);
       paramIndex++;
+    } else if (queryParams.job_role_id != null || queryParams.company_id != null) {
+      query += `
+      INNER JOIN sourcing.applications a ON a.candidate_id = c.id
+      `;
+    }
+
+    if (queryParams.company_id != null) {
+      query += `
+      INNER JOIN sourcing.job_roles jr ON jr.id = a.job_role_id
+      `;
     }
 
     query += ` WHERE 1=1`;
 
+    if (queryParams.job_role_id != null) {
+      query += ` AND a.job_role_id = $${paramIndex}`;
+      params.push(queryParams.job_role_id);
+      paramIndex++;
+    }
+    if (queryParams.company_id != null) {
+      query += ` AND jr.company_id = $${paramIndex}`;
+      params.push(queryParams.company_id);
+      paramIndex++;
+    }
+    if (queryParams.portal_id != null) {
+      query += ` AND c.portal_id = $${paramIndex}`;
+      params.push(queryParams.portal_id);
+      paramIndex++;
+    }
+
+    const search = queryParams.search?.trim();
     if (search) {
       query += ` AND (c.name ILIKE $${paramIndex} OR c.phone ILIKE $${paramIndex} OR c.email ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
@@ -468,7 +497,7 @@ export class RecruiterService {
     query: ApplicationQueryDto,
     recruiterId: number,
     userId?: number,
-  ): Promise<{ data: ApplicationResponse[]; total: number; page: number; limit: number }> {
+  ): Promise<{ applications: ApplicationResponse[]; total: number; page: number; limit: number; total_pages: number }> {
     const page = query.page || 1;
     const limit = query.limit || 20;
     const offset = (page - 1) * limit;
@@ -542,11 +571,39 @@ export class RecruiterService {
       paramIndex++;
     }
 
-    // Count total sourcing
+    if (query.interview_scheduled !== undefined) {
+      whereClause += ` AND a.interview_scheduled = $${paramIndex}`;
+      params.push(query.interview_scheduled);
+      paramIndex++;
+    }
+
+    if (query.interview_status) {
+      whereClause += ` AND a.interview_status = $${paramIndex}`;
+      params.push(query.interview_status);
+      paramIndex++;
+    }
+
+    const searchTerm = query.search?.trim();
+    if (searchTerm) {
+      whereClause += ` AND (
+        c.name ILIKE $${paramIndex}
+        OR c.phone ILIKE $${paramIndex}
+        OR c.email ILIKE $${paramIndex}
+        OR a.portal ILIKE $${paramIndex}
+        OR jr.role_name ILIKE $${paramIndex}
+        OR comp.name ILIKE $${paramIndex}
+      )`;
+      params.push(`%${searchTerm}%`);
+      paramIndex++;
+    }
+
+    // Count total sourcing (JOINs match data query so search/filters apply)
     const countQuery = `
       SELECT COUNT(*) as total
       FROM sourcing.applications a
+      INNER JOIN sourcing.candidates c ON c.id = a.candidate_id
       LEFT JOIN sourcing.job_roles jr ON jr.id = a.job_role_id
+      LEFT JOIN companies comp ON comp.id = jr.company_id
       ${whereClause}
     `;
     const countResult = await this.dataSource.query(countQuery, params);
@@ -556,6 +613,12 @@ export class RecruiterService {
     const paramsData = [...params];
     const dataLimit = mergeWithJobPortal ? 2000 : limit;
     const dataOffset = mergeWithJobPortal ? 0 : offset;
+
+    const sortBy = query.sort_by || 'created_at';
+    const sortOrder = (query.sort_order || 'desc').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const orderByColumn =
+      sortBy === 'candidate_name' ? 'c.name' : `a.${sortBy}`;
+    const orderByClause = `ORDER BY ${orderByColumn} ${sortOrder}, a.id DESC`;
 
     // Get sourcing data (with or without limit for merge)
     const dataQuery = `
@@ -609,7 +672,7 @@ export class RecruiterService {
       INNER JOIN sourcing.job_roles jr ON jr.id = a.job_role_id
       LEFT JOIN companies comp ON comp.id = jr.company_id
       ${whereClause}
-      ORDER BY a.assigned_date DESC, a.created_at DESC
+      ${orderByClause}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
     paramsData.push(dataLimit, dataOffset);
@@ -631,12 +694,12 @@ export class RecruiterService {
       );
       const recruiter = recruiterRow[0]
         ? {
-            id: recruiterRow[0].id,
-            name: recruiterRow[0].name,
-            email: recruiterRow[0].email || null,
-            phone: recruiterRow[0].phone || null,
-            is_active: true,
-          }
+          id: recruiterRow[0].id,
+          name: recruiterRow[0].name,
+          email: recruiterRow[0].email || null,
+          phone: recruiterRow[0].phone || null,
+          is_active: true,
+        }
         : { id: recruiterId, name: '', email: null, phone: null, is_active: true };
 
       const jobPortalMapped: ApplicationResponse[] = jobPortalList.map((app: any) =>
@@ -654,7 +717,8 @@ export class RecruiterService {
       data = sourcingRows;
     }
 
-    return { data, total, page, limit };
+    const total_pages = limit > 0 ? Math.ceil(total / limit) : 0;
+    return { applications: data, total, page, limit, total_pages };
   }
 
   /**
@@ -728,13 +792,13 @@ export class RecruiterService {
       },
       company: company.id
         ? {
-            id: company.id,
-            name: company.name || '',
-            slug: (company.slug as string) || '',
-            description: company.description ?? null,
-            website: company.website ?? null,
-            industry: company.industry ?? null,
-          }
+          id: company.id,
+          name: company.name || '',
+          slug: (company.slug as string) || '',
+          description: company.description ?? null,
+          website: company.website ?? null,
+          industry: company.industry ?? null,
+        }
         : undefined,
     };
   }
@@ -814,12 +878,12 @@ export class RecruiterService {
         );
         const recruiter = recruiterRow[0]
           ? {
-              id: recruiterRow[0].id,
-              name: recruiterRow[0].name,
-              email: recruiterRow[0].email || null,
-              phone: recruiterRow[0].phone || null,
-              is_active: true,
-            }
+            id: recruiterRow[0].id,
+            name: recruiterRow[0].name,
+            email: recruiterRow[0].email || null,
+            phone: recruiterRow[0].phone || null,
+            is_active: true,
+          }
           : { id: recruiterId, name: '', email: null, phone: null, is_active: true };
         return this.mapJobPortalApplicationToResponse(jobPortalApp, recruiterId, recruiter);
       } catch {
@@ -913,6 +977,129 @@ export class RecruiterService {
     );
 
     return this.getApplicationById(result[0].id, recruiterId);
+  }
+
+  /**
+   * Create candidate + application in a single transactional API.
+   * - Throws if candidate phone already exists (same as createCandidate).
+   * - Throws if duplicate application for (candidate, job_role, assigned_date).
+   * - All operations are wrapped in a transaction so either both records are created or none.
+   */
+  async createApplicationWithCandidate(
+    payload: CreateApplicationWithCandidateDto,
+    recruiterId: number,
+  ): Promise<ApplicationResponse> {
+    const { candidate: candidateDto, application: applicationDto } = payload;
+
+    // Run create-candidate + create-application in a single transaction
+    const appId = await this.dataSource.transaction(async (manager) => {
+      // 1) Candidate duplicate check by phone hash
+      const phoneHash = await manager.query(
+        `SELECT sourcing.hash_phone($1) as hash`,
+        [candidateDto.phone],
+      );
+      const hash = phoneHash[0].hash;
+
+      const existing = await manager.query(
+        `SELECT id FROM sourcing.candidates WHERE phone_hash = $1`,
+        [hash],
+      );
+      if (existing.length > 0) {
+        throw new BadRequestException('Candidate with this phone number already exists');
+      }
+
+      // 2) Insert candidate (reuse age/date_of_birth logic)
+      let dateOfBirth: string | null = candidateDto.date_of_birth ?? null;
+      if (!dateOfBirth && candidateDto.age != null) {
+        const y = new Date().getFullYear() - Math.floor(candidateDto.age);
+        dateOfBirth = `${y}-01-01`;
+      }
+
+      const candidateInsert = await manager.query(
+        `INSERT INTO sourcing.candidates (name, phone, email, portal_id, date_of_birth, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5::date, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         RETURNING id`,
+        [
+          candidateDto.candidate_name,
+          candidateDto.phone,
+          candidateDto.email || null,
+          candidateDto.portal_id || null,
+          dateOfBirth,
+        ],
+      );
+      const candidateId = candidateInsert[0].id;
+
+      // 3) Validate job role exists
+      const jobRole = await manager.query(
+        `SELECT id FROM sourcing.job_roles WHERE id = $1 AND is_active = true`,
+        [applicationDto.job_role_id],
+      );
+      if (jobRole.length === 0) {
+        throw new NotFoundException(`Job role with ID ${applicationDto.job_role_id} not found`);
+      }
+
+      // 4) Ensure partition exists for assigned_date
+      const assignedDate = new Date(applicationDto.assigned_date);
+      const partitionDate = new Date(assignedDate.getFullYear(), assignedDate.getMonth(), 1);
+      await manager.query(
+        `SELECT sourcing.create_monthly_partition('applications', $1::DATE)`,
+        [partitionDate],
+      );
+
+      // 5) Duplicate application check (using new candidateId)
+      const duplicate = await manager.query(
+        `SELECT id FROM sourcing.applications 
+         WHERE candidate_id = $1 AND job_role_id = $2 AND assigned_date = $3`,
+        [candidateId, applicationDto.job_role_id, applicationDto.assigned_date],
+      );
+      if (duplicate.length > 0) {
+        throw new BadRequestException(
+          'Application already exists for this candidate, job role, and assigned date',
+        );
+      }
+
+      // 6) Map status strings to integers
+      const callStatusInt = applicationDto.call_status
+        ? StatusMapper.callStatusToInt(applicationDto.call_status)
+        : null;
+      const interestedInt = applicationDto.interested_status
+        ? StatusMapper.interestedStatusToInt(applicationDto.interested_status)
+        : null;
+      const selectionInt = applicationDto.selection_status
+        ? StatusMapper.selectionStatusToInt(applicationDto.selection_status)
+        : null;
+      const joiningInt = applicationDto.joining_status
+        ? StatusMapper.joiningStatusToInt(applicationDto.joining_status)
+        : null;
+
+      // 7) Insert application
+      const appInsert = await manager.query(
+        `INSERT INTO sourcing.applications (
+          candidate_id, recruiter_id, job_role_id, assigned_date, call_date,
+          call_status, interested, selection_status, joining_status, notes,
+          created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING id`,
+        [
+          candidateId,
+          recruiterId,
+          applicationDto.job_role_id,
+          applicationDto.assigned_date,
+          applicationDto.call_date || null,
+          callStatusInt,
+          interestedInt,
+          selectionInt,
+          joiningInt,
+          applicationDto.notes || null,
+        ],
+      );
+
+      return appInsert[0].id as number;
+    });
+
+    // Load and return full application with nested candidate using existing helper
+    return this.getApplicationById(appId, recruiterId);
   }
 
   /**
@@ -1536,13 +1723,13 @@ export class RecruiterService {
       },
       company: row.company_id_full
         ? {
-            id: row.company_id_full,
-            name: row.company_name,
-            slug: row.company_slug,
-            description: row.company_description || null,
-            website: row.company_website || null,
-            industry: row.company_industry || null,
-          }
+          id: row.company_id_full,
+          name: row.company_name,
+          slug: row.company_slug,
+          description: row.company_description || null,
+          website: row.company_website || null,
+          industry: row.company_industry || null,
+        }
         : undefined,
     };
   }

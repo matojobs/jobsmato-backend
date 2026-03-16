@@ -132,11 +132,21 @@ docker-compose ps
 
 ## Environment Variables
 
-Make sure your `docker-compose.yml` has all required environment variables:
+### Server `.env` (required for API startup)
+
+**On the server**, in the same directory as `docker-compose.yml` (e.g. `/home/jobsmato/`), create a **`.env`** file. Do not commit this file. Docker Compose loads it when you run `docker compose up -d`, and substitutes variables like `${GOOGLE_CLIENT_ID:-}`.
+
+The API **requires** these for startup (Google OAuth is mandatory; see [DEPLOYMENT-ACTIVITY-LOG.md](./DEPLOYMENT-ACTIVITY-LOG.md) and [ACTIVITY_LOG.md](./ACTIVITY_LOG.md) Google OAuth notes):
+
+- **GOOGLE_CLIENT_ID** – from Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client
+- **GOOGLE_CLIENT_SECRET**
+- **GOOGLE_CALLBACK_URL** – full URL, e.g. `https://api.jobsmato.com/api/auth/google/callback` (must match Google Console redirect URI exactly)
+
+Also ensure (in `.env` or in `docker-compose.yml`):
 
 - Database credentials
 - JWT secrets
-- Google Drive credentials
+- Google Drive credentials (if using resume download from Drive)
 - SMTP settings
 - Redis configuration
 

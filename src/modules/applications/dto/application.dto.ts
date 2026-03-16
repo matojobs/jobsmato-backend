@@ -37,8 +37,18 @@ export class UpdateApplicationStatusDto {
   status: ApplicationStatus;
 }
 
-/** Call status options shared by recruiter portal. */
-export const RECRUITER_CALL_STATUS_OPTIONS = ['Busy', 'RNR', 'Connected', 'Wrong Number', 'Switch off'] as const;
+/** Call status options for Pending Applications (and Add/Edit Candidate). */
+export const RECRUITER_CALL_STATUS_OPTIONS = [
+  'Connected',
+  'RNR',
+  'Busy',
+  'Switched Off',
+  'Incoming Off',
+  'Call Back',
+  'Invalid',
+  'Wrong Number',
+  'Out of network',
+] as const;
 
 export class UpdateRecruiterCallDto {
   @ApiProperty({ example: '2024-01-15', description: 'Date recruiter called the candidate (YYYY-MM-DD)' })
@@ -47,7 +57,7 @@ export class UpdateRecruiterCallDto {
 
   @ApiProperty({
     example: 'Connected',
-    description: 'Call status: Busy, RNR, Connected, Wrong Number, Switch off. Interested is required only when Connected.',
+    description: 'Call status. Interested is required only when Connected.',
     enum: RECRUITER_CALL_STATUS_OPTIONS,
   })
   @IsString()

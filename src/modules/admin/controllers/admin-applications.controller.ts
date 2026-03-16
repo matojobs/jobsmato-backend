@@ -32,6 +32,7 @@ export class AdminApplicationsController {
   @ApiQuery({ name: 'jobId', required: false, type: Number })
   @ApiQuery({ name: 'userId', required: false, type: Number })
   @ApiQuery({ name: 'status', required: false, enum: ApplicationStatus })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by applicant name, email, or phone' })
   @ApiResponse({ status: 200, description: 'Paginated list of applications' })
   async getApplications(
     @Query('page') page?: string,
@@ -39,6 +40,7 @@ export class AdminApplicationsController {
     @Query('jobId') jobId?: string,
     @Query('userId') userId?: string,
     @Query('status') status?: string,
+    @Query('search') search?: string,
   ) {
     const query = {
       page: page ? Number(page) : undefined,
@@ -46,6 +48,7 @@ export class AdminApplicationsController {
       jobId: jobId ? Number(jobId) : undefined,
       userId: userId ? Number(userId) : undefined,
       status: status as ApplicationStatus | undefined,
+      search: search?.trim() || undefined,
     };
     return this.adminApplicationsService.getApplications(query);
   }

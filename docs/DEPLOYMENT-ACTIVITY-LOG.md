@@ -4,6 +4,45 @@ This file tracks deployment activities. For general dev activity (fixes, tooling
 
 ---
 
+## 2026-03-16 - Backend deploy: recruiter-performance APIs, applications response shape, seed script
+
+### Deployed
+- **Build:** Docker image built (linux/amd64), saved as jobsmato-backend.tar (~84 MB), uploaded with docker-compose.yml and .env.
+- **Server:** `deploy.ps1` run; image loaded, containers restarted (api, postgres, redis). Migrations and sourcing fix run on server.
+- **Features in this deploy:** Recruiter applications list returns `{ applications, total, page, limit, total_pages }` and supports `sort_by` / `sort_order`. Admin Recruiter Performance: 7 endpoints under `/api/admin/recruiter-performance` (dod, mtd, individual, company-wise, client-report, negative-funnel/not-interested-remarks, interview-status-company-wise). Seed script `npm run seed:admin-perf` for dummy dashboard data (local only; not run on server).
+
+### Deployment steps used
+1. `.\deploy.ps1` (tunnel started by script, full build, upload, docker compose up -d, migrations, verify).
+2. Verify: https://api.jobsmato.com/api/health and https://api.jobsmato.com/api/docs
+
+### Notes
+- No new env vars. Admin recruiter-performance requires admin JWT + view_analytics permission.
+- Dummy data for Admin Recruiter Performance: run `npm run seed:admin-perf` locally against your DB; for production data, ensure sourcing.applications has data (e.g. from recruiter portal or ETL).
+
+---
+
+## 2026-02-28 - Backend deploy: call status options, .env upload, migration 0030 fix
+
+### Deployed
+- **Build:** Docker image built and uploaded (~84 MB); `docker-compose.yml` and `.env` uploaded to server.
+- **Server:** Containers restarted (api, postgres, redis); API health check OK.
+- **Call status:** Backend accepts 9 call status values (Connected, RNR, Busy, Switched Off, Incoming Off, Call Back, Invalid, Wrong Number, Out of network) for Add/Edit Candidate and Pending Applications. See [FRONTEND-CALL-STATUS-OPTIONS.md](./FRONTEND-CALL-STATUS-OPTIONS.md).
+
+### Migration 0030 on production
+- **Migration 0030** (ExtendSourcingCallStatusOptions) **failed** on this deploy during ATTACH PARTITION: "child table applications_2026_02 has different definition for check constraint". The partition was re-attached with the old (1–5) check still on the detached table.
+- **Fix applied in code:** Migration 0030 updated to alter each **detached** partition (drop old check, add 1–9 check) before ATTACH. Next deploy will run the fixed migration and apply call_status 1–9 on production.
+- **Until then:** Creating recruiter applications with new call statuses (6–9) on production may fail with a check constraint error. Use existing statuses (1–5) or redeploy after the fix to run the corrected migration.
+
+### Deployment steps used
+1. `.\deploy.ps1` (tunnel started by script, build, upload, `docker compose up -d`, migrations, verify).
+2. Verify: https://api.jobsmato.com/api/health
+
+### Notes
+- Deploy script uploads `.env` from repo root so server has Google OAuth and other credentials.
+- Old image cleanup (jobsmato-backend:previous, prune) ran after deploy.
+
+---
+
 ## 2026-02-05 - Backend deploy + Recruiter (HRMS) prod URL in CORS
 
 ### Changes Deployed

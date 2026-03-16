@@ -20,6 +20,7 @@ import { AdminBulkUploadController } from './controllers/admin-bulk-upload.contr
 import { AdminSettingsController } from './controllers/admin-settings.controller';
 import { AdminActivityController } from './controllers/admin-activity.controller';
 import { AdminLogsController } from './controllers/admin-logs.controller';
+import { AdminRecruiterPerformanceController } from './controllers/admin-recruiter-performance.controller';
 
 // Services
 import { AdminService } from './services/admin.service';
@@ -32,6 +33,7 @@ import { AdminBulkUploadService } from './services/admin-bulk-upload.service';
 import { AdminSettingsService } from './services/admin-settings.service';
 import { AdminActivityService } from './services/admin-activity.service';
 import { AdminAuditService } from './services/admin-audit.service';
+import { AdminRecruiterPerformanceService } from './services/admin-recruiter-performance.service';
 import { CommonModule } from '../../common/common.module';
 
 @Module({
@@ -59,6 +61,7 @@ import { CommonModule } from '../../common/common.module';
     AdminSettingsController,
     AdminActivityController,
     AdminLogsController,
+    AdminRecruiterPerformanceController,
   ],
   providers: [
     AdminService,
@@ -71,6 +74,7 @@ import { CommonModule } from '../../common/common.module';
     AdminSettingsService,
     AdminActivityService,
     AdminAuditService,
+    AdminRecruiterPerformanceService,
   ],
   exports: [AdminService, AdminAuditService],
 })

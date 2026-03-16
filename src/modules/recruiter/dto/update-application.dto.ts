@@ -1,5 +1,6 @@
 import { IsString, IsDateString, IsOptional, IsIn, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { CALL_STATUS_OPTIONS } from '../enums/status.enum';
 
 /**
  * DTO for updating application (Edit Candidate modal).
@@ -23,10 +24,10 @@ export class UpdateApplicationDto {
 
   @ApiPropertyOptional({
     description: 'Call status. Interested required only when Connected.',
-    enum: ['Busy', 'RNR', 'Connected', 'Wrong Number', 'Switch off'],
+    enum: CALL_STATUS_OPTIONS,
   })
   @IsOptional()
-  @IsIn(['Busy', 'RNR', 'Connected', 'Wrong Number', 'Switch off'])
+  @IsIn([...CALL_STATUS_OPTIONS])
   call_status?: string | null;
 
   @ApiPropertyOptional({

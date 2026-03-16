@@ -1,6 +1,8 @@
-import { IsOptional, IsNumber, IsString, IsDateString, IsIn, Min } from 'class-validator';
+import { IsOptional, IsNumber, IsString, IsDateString, IsIn, Min, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { CALL_STATUS_OPTIONS } from '../enums/status.enum';
 
 /**
  * Query parameters DTO for filtering applications
@@ -39,9 +41,9 @@ export class ApplicationQueryDto {
   @IsNumber()
   company_id?: number;
 
-  @ApiPropertyOptional({ description: 'Call status filter', enum: ['Busy', 'RNR', 'Connected', 'Wrong Number'] })
+  @ApiPropertyOptional({ description: 'Call status filter', enum: CALL_STATUS_OPTIONS })
   @IsOptional()
-  @IsIn(['Busy', 'RNR', 'Connected', 'Wrong Number'])
+  @IsIn([...CALL_STATUS_OPTIONS])
   call_status?: string;
 
   @ApiPropertyOptional({ description: 'Interested status filter', enum: ['Yes', 'No', 'Call Back Later'] })
@@ -68,4 +70,70 @@ export class ApplicationQueryDto {
   @IsOptional()
   @IsDateString()
   end_date?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by interview scheduled', example: false })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    return undefined;
+  })
+  @IsBoolean()
+  interview_scheduled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Filter by interview status', example: 'Done' })
+  @IsOptional()
+  @IsString()
+  interview_status?: string;
+
+  @ApiPropertyOptional({
+    description: 'Search by candidate name, phone, email, portal, job role name, or company name',
+    example: 'John',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Sort field',
+    enum: ['created_at', 'updated_at', 'call_date', 'assigned_date', 'candidate_name'],
+    default: 'created_at',
+  })
+  @IsOptional()
+  @IsIn(['created_at', 'updated_at', 'call_date', 'assigned_date', 'candidate_name'])
+  sort_by?: string = 'created_at';
+
+  @ApiPropertyOptional({ description: 'Sort order', enum: ['asc', 'desc'], default: 'desc' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sort_order?: 'asc' | 'desc' = 'desc';
+}
+
+/**
+ * Query parameters for GET /api/recruiter/candidates
+ * Search by name/phone/email (free text) and optional filters by job role, company, portal.
+ */
+export class CandidateQueryDto {
+  @ApiPropertyOptional({ description: 'Search by candidate name, phone, or email', example: 'John' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by job role ID', example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  job_role_id?: number;
+
+  @ApiPropertyOptional({ description: 'Filter by company ID', example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  company_id?: number;
+
+  @ApiPropertyOptional({ description: 'Filter by portal ID', example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  portal_id?: number;
 }

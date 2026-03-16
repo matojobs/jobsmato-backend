@@ -20,7 +20,8 @@ import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { CreateCandidateDto } from './dto/create-candidate.dto';
 import { CreateJobRoleDto } from './dto/create-job-role.dto';
-import { ApplicationQueryDto } from './dto/query-params.dto';
+import { ApplicationQueryDto, CandidateQueryDto } from './dto/query-params.dto';
+import { CreateApplicationWithCandidateDto } from './dto/create-application-with-candidate.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RecruiterGuard } from './guards/recruiter.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -101,14 +102,14 @@ export class RecruiterController {
   }
 
   @Get('candidates')
-  @ApiOperation({ summary: 'Get candidates assigned to this recruiter' })
+  @ApiOperation({ summary: 'Get candidates (optional search by name/phone/email and filters by job role, company, portal)' })
   @ApiResponse({ status: 200, description: 'List of candidates' })
   async getCandidates(
-    @Query('search') search?: string,
+    @Query() query: CandidateQueryDto,
     @CurrentUser() user?: User,
   ) {
     const recruiterId = user ? await this.getRecruiterId(user) : undefined;
-    return this.recruiterService.getCandidates(search, recruiterId);
+    return this.recruiterService.getCandidates(query, recruiterId);
   }
 
   @Post('candidates')
@@ -162,6 +163,24 @@ export class RecruiterController {
   ) {
     const recruiterId = await this.getRecruiterId(user);
     return this.recruiterService.createApplication(dto, recruiterId);
+  }
+
+  @Post('applications/with-candidate')
+  @ApiOperation({
+    summary: 'Create candidate + application in a single API (transactional)',
+    description:
+      'Creates a new candidate in sourcing.candidates and an application in sourcing.applications inside one transaction. ' +
+      'If any validation fails (duplicate phone, invalid job role, duplicate application), nothing is created.',
+  })
+  @ApiResponse({ status: 201, description: 'Candidate and application created' })
+  @ApiResponse({ status: 400, description: 'Bad request - duplicate or validation error' })
+  @HttpCode(HttpStatus.CREATED)
+  async createApplicationWithCandidate(
+    @Body() dto: CreateApplicationWithCandidateDto,
+    @CurrentUser() user: User,
+  ) {
+    const recruiterId = await this.getRecruiterId(user);
+    return this.recruiterService.createApplicationWithCandidate(dto, recruiterId);
   }
 
   @Patch('applications/:id')

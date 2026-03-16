@@ -167,6 +167,23 @@ try {
     exit 1
 }
 
+# Upload .env (credentials: Google OAuth, DB, JWT, etc.) so docker compose up picks them up
+$EnvFile = Join-Path $PSScriptRoot ".env"
+if (Test-Path $EnvFile) {
+    Write-Step "Uploading .env (credentials)..."
+    try {
+        Invoke-SCP $EnvFile "/home/$SSH_USER/.env"
+        if ($LASTEXITCODE -ne 0) { throw "SCP exited with $LASTEXITCODE" }
+        Write-Success ".env uploaded"
+    } catch {
+        Write-Err "Failed to upload .env: $_"
+        if ($cloudflaredJob) { Stop-Job $cloudflaredJob -ErrorAction SilentlyContinue; Remove-Job $cloudflaredJob -ErrorAction SilentlyContinue }
+        exit 1
+    }
+} else {
+    Write-Warning ".env not found; ensure server has .env with GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL and other credentials or API may fail to start."
+}
+
 # Deploy on server
 Write-Step "Deploying on server..."
 $deployScript = @"
@@ -189,10 +206,12 @@ echo "Running database migrations..."
 docker exec jobsmato_api node scripts/run-migrations.js || true
 echo 'Ensuring sourcing schema on prod - no-op if already present...'
 docker exec jobsmato_api node scripts/fix-prod-sourcing-migrations.js || true
-echo 'Ensuring recruiter-edit migrations 0028 0029 - no-op if already applied...'
-docker exec jobsmato_api node -r dotenv/config scripts/run-recruiter-edit-migrations.js || true
 echo "Checking container status..."
 docker compose -f $COMPOSE_FILE ps
+echo "Cleaning up old images to free memory..."
+docker rmi jobsmato-backend:previous 2>/dev/null || true
+docker image prune -f
+echo "[OK] Cleanup done"
 "@
 
 try {

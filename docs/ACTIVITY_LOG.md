@@ -4,6 +4,82 @@ Project activity log for non-deployment work (features, fixes, config, tooling).
 
 ---
 
+## 2026-03-16 - Dummy data seed for Admin Recruiter Performance dashboard
+
+### What was done
+- **Seed script:** `scripts/seed-admin-recruiter-performance.js` inserts dummy data so the Admin Recruiter Performance dashboard shows results. It ensures monthly partitions for `sourcing.applications`, uses or creates recruiters (sourcing.recruiters), companies and job roles, inserts candidates (unique phones), and inserts applications with varied assigned_date, call_date, call_status, interested, not_interested_remark, interview_*, selection_status, joining_status, backout, etc.
+- **Run:** `npm run seed:admin-perf` or `node scripts/seed-admin-recruiter-performance.js` (uses .env for DB).
+
+### Files added/updated
+- `scripts/seed-admin-recruiter-performance.js` – added.
+- `package.json` – script `seed:admin-perf` added.
+- `docs/ACTIVITY_LOG.md` – this entry.
+
+---
+
+## 2026-03-16 - Backend requirements: applications response shape, sort params, admin recruiter-performance APIs
+
+### What was done
+- **Recruiter applications list:** Response shape aligned with requirements: `{ applications, total, page, limit, total_pages }` (was `data`; added `total_pages`). Added optional `sort_by` (created_at, updated_at, call_date, assigned_date, candidate_name) and `sort_order` (asc, desc) to `GET /api/recruiter/applications`.
+- **Admin recruiter-performance:** New module under `/api/admin/recruiter-performance` with 7 endpoints (admin JWT + view_analytics): (1) `GET dod?date=` – day report per recruiter + total; (2) `GET mtd?month=` – month-to-date per recruiter + total; (3) `GET individual?recruiter_id=&period=dod|mtd&date=&month=` – single recruiter DOD or MTD; (4) `GET company-wise?month=` – company funnel (optional month); (5) `GET client-report?company_id=&date=&month=` – one company MTD and DOD side by side; (6) `GET negative-funnel/not-interested-remarks?date=&month=` – not-interested remarks by remark and job role; (7) `GET interview-status-company-wise?date=` – interview status by company for a day. Data source: sourcing.applications (recruitment pipeline).
+
+### Files added/updated
+- `src/modules/recruiter/dto/query-params.dto.ts` – `sort_by`, `sort_order` on ApplicationQueryDto.
+- `src/modules/recruiter/recruiter.service.ts` – getApplications returns `applications` and `total_pages`; dynamic ORDER BY from sort_by/sort_order.
+- `src/modules/admin/services/admin-recruiter-performance.service.ts` – new; DOD, MTD, individual, company-wise, client-report, not-interested-remarks, interview-status-company-wise.
+- `src/modules/admin/controllers/admin-recruiter-performance.controller.ts` – new; 7 GET routes, AdminGuard + VIEW_ANALYTICS.
+- `src/modules/admin/admin.module.ts` – registered AdminRecruiterPerformanceController and AdminRecruiterPerformanceService.
+- `docs/ACTIVITY_LOG.md` – this entry.
+
+---
+
+## 2026-03-13 - Search (recruiter + admin), DTO fixes, search docs, optional trigram indexes
+
+### What was done
+- **Recruiter applications search:** `GET /api/recruiter/applications` now accepts optional `search` query param. One term is matched (case-insensitive “contains”) against candidate name, phone, email, application portal, job role name, and company name. Existing filters (job_role_id, company_id, call_status, dates, interview_scheduled, interview_status, etc.) unchanged; call_status filter updated to accept all 9 options.
+- **Recruiter candidates search and filters:** `GET /api/recruiter/candidates` now accepts `search` (name, phone, email) plus optional `job_role_id`, `company_id`, `portal_id`. Controller uses `CandidateQueryDto`; service applies filters via JOINs when needed.
+- **Admin applications search:** `GET /api/admin/applications` now accepts optional `search` query param matched against applicant first name, last name, email, and phone.
+- **DTO fixes:** (1) `POST /api/recruiter/applications/with-candidate`: application part uses `ApplicationPayloadForWithCandidateDto` so `candidate_id` is optional (ignored) and `portal` is allowed (avoids “property should not exist”). (2) Applications list query: `interview_scheduled` and `interview_status` added to `ApplicationQueryDto` and applied in service.
+- **Search docs:** [SEARCH-STRATEGY.md](./SEARCH-STRATEGY.md) explains current ILIKE approach vs trigram/FTS/external options. [FRONTEND-SEARCH-API.md](./FRONTEND-SEARCH-API.md) documents for frontend all search and filter params for recruiter applications, recruiter candidates, and admin applications.
+- **Optional performance:** Migration `1700000000032-AddSearchTrigramIndexes` adds `pg_trgm` and GIN trigram indexes on searched columns (candidates, companies, job_roles, applications.portal, users) so ILIKE search can use indexes when run.
+
+### Files added/updated
+- `src/modules/recruiter/dto/query-params.dto.ts` – `search` on ApplicationQueryDto; CALL_STATUS_OPTIONS for call_status; `CandidateQueryDto` (search, job_role_id, company_id, portal_id); interview_scheduled, interview_status.
+- `src/modules/recruiter/dto/create-application-with-candidate.dto.ts` – `ApplicationPayloadForWithCandidateDto` (candidate_id optional, portal allowed); CreateApplicationWithCandidateDto uses it.
+- `src/modules/recruiter/recruiter.controller.ts` – getCandidates uses CandidateQueryDto; getApplications unchanged (query already had new params).
+- `src/modules/recruiter/recruiter.service.ts` – getApplications: search condition + count query JOINs (c, jr, comp); interview_scheduled/interview_status filters; getCandidates: query params object, job_role_id/company_id/portal_id filters.
+- `src/modules/admin/services/admin-applications.service.ts` – `search` in AdminApplicationsQuery; leftJoin user and ILIKE on firstName, lastName, email, phone.
+- `src/modules/admin/controllers/admin-applications.controller.ts` – `search` query param passed to service.
+- `docs/SEARCH-STRATEGY.md` – added.
+- `docs/FRONTEND-SEARCH-API.md` – added.
+- `src/migrations/1700000000032-AddSearchTrigramIndexes.ts` – optional; pg_trgm + GIN indexes on searched columns.
+- `docs/ACTIVITY_LOG.md` – this entry.
+
+### Rule
+- **Activity log:** Update this log when completing significant work; do not wait for the user to ask. See `.cursor/rules/activity-log-and-guardrails.mdc`.
+
+---
+
+## 2026-02-28 - Call status options (9 values), frontend doc, deploy and logs
+
+### What was done
+- **Call status options:** Added 9 call status values for Add Candidate, Edit Candidate, and Pending Application: Connected, RNR, Busy, Switched Off, Incoming Off, Call Back, Invalid, Wrong Number, Out of network. Backend: recruiter create/update DTOs, applications RECRUITER_CALL_STATUS_OPTIONS, status enum and StatusMapper (1–9), migration 0030 (sourcing.applications call_status 1–9) and 0031 (partition fix). Migration 0030 uses detach → drop/add parent constraint → update detached partitions’ check → re-attach; fix applied so detached partition constraint is updated before ATTACH (production had failed on re-attach; next deploy will run corrected migration).
+- **Frontend doc:** [FRONTEND-CALL-STATUS-OPTIONS.md](./FRONTEND-CALL-STATUS-OPTIONS.md) for dropdown values and API usage.
+- **Deploy:** Backend deployed via `deploy.ps1`; API healthy. See [DEPLOYMENT-ACTIVITY-LOG.md](./DEPLOYMENT-ACTIVITY-LOG.md) for 2026-02-28 entry.
+- **Logs:** Deployment activity log and this activity log updated.
+
+### Files added/updated
+- `src/modules/recruiter/enums/status.enum.ts` – CallStatus 6–9, CallStatusString, CALL_STATUS_OPTIONS.
+- `src/modules/recruiter/mappers/status.mapper.ts` – map 6–9 and Switched Off.
+- `src/modules/recruiter/dto/create-application.dto.ts`, `update-application.dto.ts` – call_status uses CALL_STATUS_OPTIONS.
+- `src/modules/applications/dto/application.dto.ts` – RECRUITER_CALL_STATUS_OPTIONS (9 values).
+- `src/migrations/1700000000030-ExtendSourcingCallStatusOptions.ts` – detach, parent constraint, **update detached partition constraint**, attach.
+- `src/migrations/1700000000031-FixSourcingPartitionsCallStatusCheck.ts` – partition-only fix (no-op when 0030 already applied).
+- `docs/FRONTEND-CALL-STATUS-OPTIONS.md` – added.
+- `docs/DEPLOYMENT-ACTIVITY-LOG.md`, `docs/ACTIVITY_LOG.md` – this entry.
+
+---
+
 ## 2026-02-25 - Recruiter portal: recruiter work list, dashboard, candidate age, ormconfig
 
 ### What was done

@@ -11,6 +11,8 @@ export interface AdminApplicationsQuery {
   jobId?: number;
   userId?: number;
   status?: ApplicationStatus | string;
+  /** Search by applicant name, email, or phone */
+  search?: string;
 }
 
 export interface AdminApplicationsListResponse {
@@ -38,6 +40,7 @@ export class AdminApplicationsService {
     const jobId = query.jobId ? Number(query.jobId) : undefined;
     const userId = query.userId ? Number(query.userId) : undefined;
     const status = query.status as ApplicationStatus | undefined;
+    const search = query.search?.trim();
 
     const qb = this.applicationRepository
       .createQueryBuilder('app')
@@ -50,6 +53,14 @@ export class AdminApplicationsService {
     if (jobId != null) qb.andWhere('app.jobId = :jobId', { jobId });
     if (userId != null) qb.andWhere('app.userId = :userId', { userId });
     if (status) qb.andWhere('app.status = :status', { status });
+
+    if (search) {
+      qb.leftJoin('app.user', 'searchUser');
+      qb.andWhere(
+        '(searchUser.firstName ILIKE :search OR searchUser.lastName ILIKE :search OR searchUser.email ILIKE :search OR searchUser.phone ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
 
     const [applications, total] = await qb.getManyAndCount();
 

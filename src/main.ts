@@ -18,7 +18,7 @@ async function bootstrap() {
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
-      
+
       const allowedOrigins = [
         'http://localhost:3000',
         'http://localhost:3001',
@@ -28,7 +28,7 @@ async function bootstrap() {
         'https://jobsmato-frontend.vercel.app',
         'https://hrms.jobsmato.com', // Recruiter portal (HRMS) – can call API on prod
       ];
-      
+
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -98,7 +98,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 5000;
   await app.listen(port);
-  
+
   console.log(`🚀 Jobsmato API running on port ${port}`);
   console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
