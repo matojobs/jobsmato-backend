@@ -4,6 +4,27 @@ This file tracks deployment activities. For general dev activity (fixes, tooling
 
 ---
 
+## 2026-03-23 - Backend deploy: admin sourcing endpoint + followups_due in today-progress
+
+### Deployed
+- **Build:** Docker image built (linux/amd64), saved as jobsmato-backend.tar (84 MB), uploaded with docker-compose.yml and .env.
+- **Server:** `deploy.ps1` run; image loaded, all 3 containers restarted healthy (api, postgres, redis). No pending migrations. Sourcing schema already present (no-op).
+- **Health check:** `{"status":"healthy","services":{"database":{"status":"healthy"},"redis":{"status":"healthy"}}}` ✅
+- **Features in this deploy:**
+  - `AdminSourcingService` + `AdminSourcingController`: new `GET /api/admin/sourcing/applications` endpoint with `AdminGuard` (no `RecruiterGuard`). Allows admin JWT to query all sourcing candidates across all recruiters. Supports filters: `recruiter_id`, `company_id`, `call_status`, `selection_status`, `joining_status`, `interview_status`, `search`. Paginated, joins `sourcing.candidates + recruiters + job_roles + companies`.
+  - `recruiter.service.ts`: `getTodayProgress` now includes `followups_due` count (WHERE `followup_date = today AND call_status IS NOT NULL`).
+- **Commit:** `9222503` on `feature/sourcing-datalake`
+
+### Deployment steps used
+1. `.\deploy.ps1` (tunnel started by script, full build, upload, docker compose up -d, migrations, verify).
+2. Verified: https://api.jobsmato.com/api/health ✅
+
+### Notes
+- New endpoint `GET /api/admin/sourcing/applications` requires admin JWT + AdminGuard. No new env vars needed.
+- HRMS frontend (Recruiterapp `main` commit `cab1d8c`) updated to use this endpoint for admin candidates page and fixed DOD/MTD response parsing (Total row extraction).
+
+---
+
 ## 2026-03-16 - Backend deploy: recruiter-performance APIs, applications response shape, seed script
 
 ### Deployed
