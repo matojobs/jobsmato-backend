@@ -1502,7 +1502,8 @@ export class RecruiterService {
         COUNT(*) FILTER (WHERE a.interview_date = $2::date) AS interview_scheduled,
         COUNT(*) FILTER (WHERE a.interview_date = $2::date AND (a.turnup = true OR (a.interview_status IS NOT NULL AND TRIM(a.interview_status) <> ''))) AS interview_done,
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.updated_at AT TIME ZONE 'UTC')::date = $2::date) AS selected,
-        COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date = $2::date) AS joined
+        COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date = $2::date) AS joined,
+        COUNT(*) FILTER (WHERE a.followup_date = $2::date AND a.call_status IS NOT NULL) AS followups_due
       FROM sourcing.applications a
       WHERE a.recruiter_id = $1
         AND (
@@ -1510,6 +1511,7 @@ export class RecruiterService {
           OR a.call_date = $2::date
           OR a.joining_date = $2::date
           OR a.interview_date = $2::date
+          OR a.followup_date = $2::date
           OR (a.created_at AT TIME ZONE 'UTC')::date = $2::date
           OR (a.updated_at AT TIME ZONE 'UTC')::date = $2::date
         )
@@ -1528,6 +1530,7 @@ export class RecruiterService {
       { stage: 'interview done', count: parseInt(r.interview_done, 10) || 0 },
       { stage: 'selected', count: parseInt(r.selected, 10) || 0 },
       { stage: 'joined', count: parseInt(r.joined, 10) || 0 },
+      { stage: 'followups due', count: parseInt(r.followups_due, 10) || 0 },
     ];
 
     // Add job portal applications for today (recruiter filled call today)
