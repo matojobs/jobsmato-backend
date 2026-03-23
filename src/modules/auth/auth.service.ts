@@ -464,7 +464,7 @@ export class AuthService {
 
     // Different expiration times based on user role
     const accessTokenExpiry =
-      user.role === UserRole.JOB_SEEKER ? '7d' : user.role === UserRole.RECRUITER ? '8h' : '15m';
+      user.role === UserRole.JOB_SEEKER ? '7d' : user.role === UserRole.RECRUITER ? '8h' : '12h';
     const refreshTokenExpiry = user.role === UserRole.JOB_SEEKER ? '30d' : '7d';
 
     const [accessToken, refreshToken] = await Promise.all([
