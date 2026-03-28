@@ -28,8 +28,10 @@ export interface RecruiterPerformanceMtdRow {
   attempt: number;
   connected: number;
   interested: number;
+  not_interested: number;
   interview_sched: number;
   sched_next_day: number;
+  rejected: number;
   selection: number;
   total_joining: number;
   yet_to_join: number;
@@ -239,8 +241,10 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month') AS attempt,
         COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month' AND a.call_status = 3) AS connected,
         COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month' AND a.interested = 1) AS interested,
+        COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month' AND a.interested = 2) AS not_interested,
         COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month') AS interview_sched,
         COUNT(*) FILTER (WHERE a.interview_date >= $1::date + interval '1 day' AND a.interview_date < $1::date + interval '1 month') AS sched_next_day,
+        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS rejected,
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND a.updated_at >= $1::date AND a.updated_at < $1::date + interval '1 month') AS selection,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date >= $1::date AND a.joining_date < $1::date + interval '1 month') AS total_joining,
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS yet_to_join,
@@ -267,8 +271,10 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month') AS attempt,
         COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month' AND a.call_status = 3) AS connected,
         COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month' AND a.interested = 1) AS interested,
+        COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month' AND a.interested = 2) AS not_interested,
         COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month') AS interview_sched,
         COUNT(*) FILTER (WHERE a.interview_date >= $1::date + interval '1 day' AND a.interview_date < $1::date + interval '1 month') AS sched_next_day,
+        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS rejected,
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND a.updated_at >= $1::date AND a.updated_at < $1::date + interval '1 month') AS selection,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date >= $1::date AND a.joining_date < $1::date + interval '1 month') AS total_joining,
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS yet_to_join,
@@ -290,8 +296,10 @@ export class AdminRecruiterPerformanceService {
       attempt: parseInt(r.attempt, 10) || 0,
       connected: parseInt(r.connected, 10) || 0,
       interested: parseInt(r.interested, 10) || 0,
+      not_interested: parseInt(r.not_interested, 10) || 0,
       interview_sched: parseInt(r.interview_sched, 10) || 0,
       sched_next_day: parseInt(r.sched_next_day, 10) || 0,
+      rejected: parseInt(r.rejected, 10) || 0,
       selection: parseInt(r.selection, 10) || 0,
       total_joining: parseInt(r.total_joining, 10) || 0,
       yet_to_join: parseInt(r.yet_to_join, 10) || 0,
@@ -307,8 +315,10 @@ export class AdminRecruiterPerformanceService {
         attempt: parseInt(tot.attempt, 10) || 0,
         connected: parseInt(tot.connected, 10) || 0,
         interested: parseInt(tot.interested, 10) || 0,
+        not_interested: parseInt(tot.not_interested, 10) || 0,
         interview_sched: parseInt(tot.interview_sched, 10) || 0,
         sched_next_day: parseInt(tot.sched_next_day, 10) || 0,
+        rejected: parseInt(tot.rejected, 10) || 0,
         selection: parseInt(tot.selection, 10) || 0,
         total_joining: parseInt(tot.total_joining, 10) || 0,
         yet_to_join: parseInt(tot.yet_to_join, 10) || 0,
