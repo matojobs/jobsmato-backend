@@ -46,10 +46,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/scripts/run-migrations.js ./scrip
 COPY --from=builder --chown=nestjs:nodejs /app/scripts/fix-prod-sourcing-migrations.js ./scripts/fix-prod-sourcing-migrations.js
 COPY --from=builder --chown=nestjs:nodejs /app/scripts/run-sourcing-migrations.js ./scripts/run-sourcing-migrations.js
 
-# Copy OAuth credentials (required for Google Drive - matches Jan 20 deployment reference)
-# Reference: E:\New folder\jobsmato_backend (deployed Jan 20)
-COPY --chown=nestjs:nodejs credentials.json token.json config/jobsmato-folder-config.json ./
-RUN mkdir -p uploads logs && chown -R nestjs:nodejs uploads logs
+# OAuth credentials are optional (Google Drive feature) — mount via volume or copy manually
+# COPY --chown=nestjs:nodejs credentials.json token.json config/jobsmato-folder-config.json ./
+RUN mkdir -p uploads logs config && chown -R nestjs:nodejs uploads logs config
 
 # Switch to non-root user
 USER nestjs
