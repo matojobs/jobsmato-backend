@@ -51,6 +51,7 @@ export interface RecruiterPerformanceCompanyWiseRow {
   rejected: number;
   selected: number;
   joined: number;
+  not_joined: number;
   hold: number;
   yet_to_join: number;
   backout: number;
@@ -248,7 +249,7 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND a.updated_at >= $1::date AND a.updated_at < $1::date + interval '1 month') AS selection,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date >= $1::date AND a.joining_date < $1::date + interval '1 month') AS total_joining,
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS yet_to_join,
-        COUNT(*) FILTER (WHERE a.joining_status = 4 AND a.backout_date >= $1::date AND a.backout_date < $1::date + interval '1 month') AS backout,
+        COUNT(*) FILTER (WHERE a.joining_status = 4 AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) >= $1::date AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) < $1::date + interval '1 month') AS backout,
         0 AS hold
       FROM sourcing.applications a
       INNER JOIN sourcing.recruiters r ON r.id = a.recruiter_id
@@ -278,7 +279,7 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND a.updated_at >= $1::date AND a.updated_at < $1::date + interval '1 month') AS selection,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date >= $1::date AND a.joining_date < $1::date + interval '1 month') AS total_joining,
         COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS yet_to_join,
-        COUNT(*) FILTER (WHERE a.joining_status = 4 AND a.backout_date >= $1::date AND a.backout_date < $1::date + interval '1 month') AS backout,
+        COUNT(*) FILTER (WHERE a.joining_status = 4 AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) >= $1::date AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) < $1::date + interval '1 month') AS backout,
         0 AS hold
       FROM sourcing.applications a
       WHERE (a.assigned_date >= $1::date AND a.assigned_date < $1::date + interval '1 month')
@@ -393,49 +394,76 @@ export class AdminRecruiterPerformanceService {
 
   /**
    * GET /api/admin/recruiter-performance/company-wise?month=
-   * Company-wise funnel. Optional month for MTD; otherwise all-time.
+   * Company-wise funnel with proper date-scoped metrics to avoid showing all-time values.
    */
-  async getCompanyWise(month?: string): Promise<{ rows: RecruiterPerformanceCompanyWiseRow[] }> {
+  async getCompanyWise(month?: string): Promise<{ rows: RecruiterPerformanceCompanyWiseRow[]; total: Omit<RecruiterPerformanceCompanyWiseRow, 'company_id' | 'company_name'> }> {
     const m = month ? this.toMonth(month) : null;
     const start = m ? `${m}-01` : null;
-    const dateCondition = start
-      ? `(
-         (a.assigned_date >= $1::date AND a.assigned_date < $1::date + interval '1 month')
+    const params = start ? [start] : [];
+
+    // Build date-scoped FILTER conditions for each metric
+    const inPeriod = start
+      ? `>= $1::date AND %FIELD% < $1::date + interval '1 month'`
+      : null;
+
+    // Helper: metric filter with date scope or all-time
+    const scopedDate = (field: string) => start
+      ? `${field} >= $1::date AND ${field} < $1::date + interval '1 month'`
+      : `${field} IS NOT NULL`;
+    const scopedUpdated = () => start
+      ? `(a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month'`
+      : `a.updated_at IS NOT NULL`;
+    const baseWhere = start
+      ? `(a.assigned_date >= $1::date AND a.assigned_date < $1::date + interval '1 month')
          OR (a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month')
          OR (a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month')
          OR (a.joining_date >= $1::date AND a.joining_date < $1::date + interval '1 month')
-         OR ((a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month')
-         )`
+         OR ((a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month')`
       : '1=1';
-    const params = start ? [start] : [];
+
+    const selectCols = `
+        COUNT(DISTINCT a.job_role_id) AS current_openings,
+        COUNT(DISTINCT a.id) AS total_screened,
+        COUNT(*) FILTER (WHERE a.interview_scheduled = true AND a.interview_date IS NOT NULL AND ${scopedDate('a.interview_date')}) AS interview_scheduled,
+        COUNT(*) FILTER (WHERE a.interview_status IN ('Done', 'Not Attended', 'Rejected') AND ${scopedDate('a.interview_date')}) AS interview_done,
+        COUNT(*) FILTER (WHERE a.interview_scheduled = true AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled') AND ${scopedDate('a.interview_date')}) AS interview_pending,
+        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND ${scopedUpdated()}) AS rejected,
+        COUNT(*) FILTER (WHERE a.selection_status = 1 AND ${scopedUpdated()}) AS selected,
+        COUNT(*) FILTER (WHERE a.joining_status = 1 AND ${scopedDate('a.joining_date')}) AS joined,
+        COUNT(*) FILTER (WHERE a.joining_status = 2) AS not_joined,
+        0 AS hold,
+        COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3)) AS yet_to_join,
+        COUNT(*) FILTER (WHERE a.joining_status = 4 AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) >= ${start ? '$1::date' : 'CURRENT_DATE - interval \'100 years\''} AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) < ${start ? '$1::date + interval \'1 month\'' : 'CURRENT_DATE + interval \'1 day\''}) AS backout`;
+
     const rows = await this.dataSource.query(
       `
       SELECT
         jr.company_id AS company_id,
         comp.name AS company_name,
-        0 AS current_openings,
-        COUNT(DISTINCT a.id) AS total_screened,
-        COUNT(*) FILTER (WHERE a.interview_scheduled = true AND a.interview_date IS NOT NULL) AS interview_scheduled,
-        COUNT(*) FILTER (WHERE a.interview_status IN ('Done', 'Not Attended', 'Rejected')) AS interview_done,
-        COUNT(*) FILTER (WHERE a.interview_scheduled = true AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled')) AS interview_pending,
-        COUNT(*) FILTER (WHERE a.interview_status = 'Rejected' OR a.selection_status = 2) AS rejected,
-        COUNT(*) FILTER (WHERE a.selection_status = 1) AS selected,
-        COUNT(*) FILTER (WHERE a.joining_status = 1) AS joined,
-        0 AS hold,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3)) AS yet_to_join,
-        COUNT(*) FILTER (WHERE a.joining_status = 4) AS backout
+        ${selectCols}
       FROM sourcing.applications a
       INNER JOIN sourcing.job_roles jr ON jr.id = a.job_role_id
       INNER JOIN companies comp ON comp.id = jr.company_id
-      WHERE ${dateCondition}
+      WHERE ${baseWhere}
       GROUP BY jr.company_id, comp.name
       ORDER BY comp.name
       `,
       params,
     );
-    const mapped = rows.map((r: any) => ({
-      company_id: r.company_id,
-      company_name: r.company_name,
+
+    const totalRow = await this.dataSource.query(
+      `
+      SELECT
+        ${selectCols}
+      FROM sourcing.applications a
+      INNER JOIN sourcing.job_roles jr ON jr.id = a.job_role_id
+      INNER JOIN companies comp ON comp.id = jr.company_id
+      WHERE ${baseWhere}
+      `,
+      params,
+    );
+
+    const mapRow = (r: any) => ({
       current_openings: parseInt(r.current_openings, 10) || 0,
       total_screened: parseInt(r.total_screened, 10) || 0,
       interview_scheduled: parseInt(r.interview_scheduled, 10) || 0,
@@ -444,11 +472,25 @@ export class AdminRecruiterPerformanceService {
       rejected: parseInt(r.rejected, 10) || 0,
       selected: parseInt(r.selected, 10) || 0,
       joined: parseInt(r.joined, 10) || 0,
+      not_joined: parseInt(r.not_joined, 10) || 0,
       hold: parseInt(r.hold, 10) || 0,
       yet_to_join: parseInt(r.yet_to_join, 10) || 0,
       backout: parseInt(r.backout, 10) || 0,
+    });
+
+    const mapped = rows.map((r: any) => ({
+      company_id: r.company_id,
+      company_name: r.company_name,
+      ...mapRow(r),
     }));
-    return { rows: mapped };
+
+    const tot = totalRow[0] ? mapRow(totalRow[0]) : {
+      current_openings: 0, total_screened: 0, interview_scheduled: 0, interview_done: 0,
+      interview_pending: 0, rejected: 0, selected: 0, joined: 0, not_joined: 0,
+      hold: 0, yet_to_join: 0, backout: 0,
+    };
+
+    return { rows: mapped, total: tot };
   }
 
   /**
@@ -619,7 +661,7 @@ export class AdminRecruiterPerformanceService {
         jr.company_id AS company_id,
         comp.name AS company_name,
         COUNT(*) FILTER (WHERE a.interview_date = $1::date) AS int_sched,
-        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND (a.interview_status = 'Done' OR a.turnup = true)) AS int_done,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.interview_status IN ('Done', 'Not Attended', 'Rejected')) AS int_done,
         COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.interview_scheduled = true AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled')) AS inter_pending,
         COUNT(*) FILTER (WHERE a.selection_status = 1) AS selected,
         COUNT(*) FILTER (WHERE a.joining_status = 1) AS joined,
