@@ -640,6 +640,7 @@ export class RecruiterService {
         a.selection_status,
         a.joining_status,
         a.joining_date,
+        a.expected_joining_date,
         a.backout_date,
         a.backout_reason,
         a.hiring_manager_feedback,
@@ -763,6 +764,7 @@ export class RecruiterService {
       selection_status: app.selectionStatus ?? null,
       joining_status: app.joiningStatus ?? null,
       joining_date: app.joiningDate ?? null,
+      expected_joining_date: app.expectedJoiningDate ?? null,
       backout_date: app.backoutDate ?? null,
       backout_reason: app.backoutReason ?? null,
       hiring_manager_feedback: app.hiringManagerFeedback ?? null,
@@ -828,6 +830,7 @@ export class RecruiterService {
         a.selection_status,
         a.joining_status,
         a.joining_date,
+        a.expected_joining_date,
         a.backout_date,
         a.backout_reason,
         a.hiring_manager_feedback,
@@ -1135,6 +1138,7 @@ export class RecruiterService {
             selection_status: dto.selection_status,
             joining_status: dto.joining_status,
             joining_date: dto.joining_date,
+            expected_joining_date: dto.expected_joining_date,
             backout_date: dto.backout_date,
             backout_reason: dto.backout_reason,
             hiring_manager_feedback: dto.hiring_manager_feedback,
@@ -1235,6 +1239,11 @@ export class RecruiterService {
     if (dto.joining_date !== undefined) {
       updates.push(`joining_date = $${paramIndex}`);
       params.push(dto.joining_date || null);
+      paramIndex++;
+    }
+    if (dto.expected_joining_date !== undefined) {
+      updates.push(`expected_joining_date = $${paramIndex}`);
+      params.push(dto.expected_joining_date || null);
       paramIndex++;
     }
     if (dto.backout_date !== undefined) {
@@ -1692,6 +1701,7 @@ export class RecruiterService {
       selection_status: StatusMapper.selectionStatusToString(row.selection_status),
       joining_status: StatusMapper.joiningStatusToString(row.joining_status),
       joining_date: row.joining_date ? row.joining_date.toISOString?.().split('T')[0] ?? String(row.joining_date) : null,
+      expected_joining_date: row.expected_joining_date ? row.expected_joining_date.toISOString?.().split('T')[0] ?? String(row.expected_joining_date) : null,
       backout_date: row.backout_date ? row.backout_date.toISOString?.().split('T')[0] ?? String(row.backout_date) : null,
       backout_reason: row.backout_reason ?? null,
       hiring_manager_feedback: row.hiring_manager_feedback ?? null,

@@ -101,6 +101,9 @@ export class JobApplication {
   @Column({ name: 'joining_date', type: 'date', nullable: true })
   joiningDate?: Date | null;
 
+  @Column({ name: 'expected_joining_date', type: 'date', nullable: true })
+  expectedJoiningDate?: Date | null;
+
   @Column({ name: 'backout_date', type: 'date', nullable: true })
   backoutDate?: Date | null;
 

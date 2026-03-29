@@ -87,6 +87,11 @@ export class UpdateApplicationDto {
   @IsDateString()
   joining_date?: string | null;
 
+  @ApiPropertyOptional({ description: 'Expected date of joining (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsDateString()
+  expected_joining_date?: string | null;
+
   @ApiPropertyOptional({ description: 'Date candidate backed out (YYYY-MM-DD)' })
   @IsOptional()
   @IsDateString()

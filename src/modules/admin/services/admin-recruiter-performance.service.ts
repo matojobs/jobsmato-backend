@@ -9,7 +9,7 @@ export interface RecruiterPerformanceDodRow {
   attempt: number;
   connected: number;
   interested: number;
-  not_relevant: number;
+  call_back_later: number;
   not_interested: number;
   interview_sched: number;
   sched_next_day: number;
@@ -146,18 +146,18 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.call_date = $1::date) AS attempt,
         COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.call_status = 3) AS connected,
         COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.interested = 1) AS interested,
-        COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.interested = 2) AS not_relevant,
+        COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.interested = 3) AS call_back_later,
         COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.interested = 2) AS not_interested,
         COUNT(*) FILTER (WHERE a.interview_date = $1::date) AS interview_sched,
         COUNT(*) FILTER (WHERE a.interview_date = ($1::date + interval '1 day')) AS sched_next_day,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.updated_at AT TIME ZONE 'UTC')::date = $1::date) AS today_selection,
-        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND ((a.updated_at AT TIME ZONE 'UTC')::date = $1::date OR a.interview_date = $1::date)) AS rejected,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.selection_status = 1) AS today_selection,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND (a.interview_status = 'Rejected' OR a.selection_status = 2)) AS rejected,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date = $1::date) AS today_joining,
         COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.interview_status IN ('Done', 'Not Attended', 'Rejected')) AS interview_done,
-        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.interview_scheduled = true AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled')) AS interview_pending
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled')) AS interview_pending
       FROM sourcing.applications a
       INNER JOIN sourcing.recruiters r ON r.id = a.recruiter_id
-      WHERE a.assigned_date = $1::date OR a.call_date = $1::date OR a.interview_date = $1::date OR a.joining_date = $1::date OR (a.updated_at AT TIME ZONE 'UTC')::date = $1::date
+      WHERE a.assigned_date = $1::date OR a.call_date = $1::date OR a.interview_date = $1::date OR a.joining_date = $1::date
       GROUP BY r.id, r.name
       ORDER BY r.name
       `,
@@ -172,17 +172,17 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.call_date = $1::date) AS attempt,
         COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.call_status = 3) AS connected,
         COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.interested = 1) AS interested,
-        COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.interested = 2) AS not_relevant,
+        COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.interested = 3) AS call_back_later,
         COUNT(*) FILTER (WHERE a.call_date = $1::date AND a.interested = 2) AS not_interested,
         COUNT(*) FILTER (WHERE a.interview_date = $1::date) AS interview_sched,
         COUNT(*) FILTER (WHERE a.interview_date = ($1::date + interval '1 day')) AS sched_next_day,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.updated_at AT TIME ZONE 'UTC')::date = $1::date) AS today_selection,
-        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND ((a.updated_at AT TIME ZONE 'UTC')::date = $1::date OR a.interview_date = $1::date)) AS rejected,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.selection_status = 1) AS today_selection,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND (a.interview_status = 'Rejected' OR a.selection_status = 2)) AS rejected,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date = $1::date) AS today_joining,
         COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.interview_status IN ('Done', 'Not Attended', 'Rejected')) AS interview_done,
-        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.interview_scheduled = true AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled')) AS interview_pending
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled')) AS interview_pending
       FROM sourcing.applications a
-      WHERE a.assigned_date = $1::date OR a.call_date = $1::date OR a.interview_date = $1::date OR a.joining_date = $1::date OR (a.updated_at AT TIME ZONE 'UTC')::date = $1::date
+      WHERE a.assigned_date = $1::date OR a.call_date = $1::date OR a.interview_date = $1::date OR a.joining_date = $1::date
       `,
       [d],
     );
@@ -193,7 +193,7 @@ export class AdminRecruiterPerformanceService {
       attempt: parseInt(r.attempt, 10) || 0,
       connected: parseInt(r.connected, 10) || 0,
       interested: parseInt(r.interested, 10) || 0,
-      not_relevant: parseInt(r.not_relevant, 10) || 0,
+      call_back_later: parseInt(r.call_back_later, 10) || 0,
       not_interested: parseInt(r.not_interested, 10) || 0,
       interview_sched: parseInt(r.interview_sched, 10) || 0,
       sched_next_day: parseInt(r.sched_next_day, 10) || 0,
@@ -212,7 +212,7 @@ export class AdminRecruiterPerformanceService {
         attempt: parseInt(tot.attempt, 10) || 0,
         connected: parseInt(tot.connected, 10) || 0,
         interested: parseInt(tot.interested, 10) || 0,
-        not_relevant: parseInt(tot.not_relevant, 10) || 0,
+        call_back_later: parseInt(tot.call_back_later, 10) || 0,
         not_interested: parseInt(tot.not_interested, 10) || 0,
         interview_sched: parseInt(tot.interview_sched, 10) || 0,
         sched_next_day: parseInt(tot.sched_next_day, 10) || 0,
@@ -245,10 +245,10 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month' AND a.interested = 2) AS not_interested,
         COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month') AS interview_sched,
         COUNT(*) FILTER (WHERE a.interview_date >= $1::date + interval '1 day' AND a.interview_date < $1::date + interval '1 month') AS sched_next_day,
-        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS rejected,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND a.updated_at >= $1::date AND a.updated_at < $1::date + interval '1 month') AS selection,
+        COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month' AND (a.interview_status = 'Rejected' OR a.selection_status = 2)) AS rejected,
+        COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month' AND a.selection_status = 1) AS selection,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date >= $1::date AND a.joining_date < $1::date + interval '1 month') AS total_joining,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS yet_to_join,
+        COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month' AND a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3)) AS yet_to_join,
         COUNT(*) FILTER (WHERE a.joining_status = 4 AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) >= $1::date AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) < $1::date + interval '1 month') AS backout,
         0 AS hold
       FROM sourcing.applications a
@@ -275,10 +275,10 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month' AND a.interested = 2) AS not_interested,
         COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month') AS interview_sched,
         COUNT(*) FILTER (WHERE a.interview_date >= $1::date + interval '1 day' AND a.interview_date < $1::date + interval '1 month') AS sched_next_day,
-        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS rejected,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND a.updated_at >= $1::date AND a.updated_at < $1::date + interval '1 month') AS selection,
+        COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month' AND (a.interview_status = 'Rejected' OR a.selection_status = 2)) AS rejected,
+        COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month' AND a.selection_status = 1) AS selection,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date >= $1::date AND a.joining_date < $1::date + interval '1 month') AS total_joining,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3) AND (a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month') AS yet_to_join,
+        COUNT(*) FILTER (WHERE a.interview_date >= $1::date AND a.interview_date < $1::date + interval '1 month' AND a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3)) AS yet_to_join,
         COUNT(*) FILTER (WHERE a.joining_status = 4 AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) >= $1::date AND COALESCE(a.backout_date, (a.updated_at AT TIME ZONE 'UTC')::date) < $1::date + interval '1 month') AS backout,
         0 AS hold
       FROM sourcing.applications a
@@ -351,7 +351,7 @@ export class AdminRecruiterPerformanceService {
           attempt: 0,
           connected: 0,
           interested: 0,
-          not_relevant: 0,
+          call_back_later: 0,
           not_interested: 0,
           interview_sched: 0,
           sched_next_day: 0,
@@ -427,8 +427,8 @@ export class AdminRecruiterPerformanceService {
         COUNT(*) FILTER (WHERE a.interview_scheduled = true AND a.interview_date IS NOT NULL AND ${scopedDate('a.interview_date')}) AS interview_scheduled,
         COUNT(*) FILTER (WHERE a.interview_status IN ('Done', 'Not Attended', 'Rejected') AND ${scopedDate('a.interview_date')}) AS interview_done,
         COUNT(*) FILTER (WHERE a.interview_scheduled = true AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled') AND ${scopedDate('a.interview_date')}) AS interview_pending,
-        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND ${scopedUpdated()}) AS rejected,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND ${scopedUpdated()}) AS selected,
+        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND ${scopedDate('a.interview_date')}) AS rejected,
+        COUNT(*) FILTER (WHERE a.selection_status = 1 AND ${scopedDate('a.interview_date')}) AS selected,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND ${scopedDate('a.joining_date')}) AS joined,
         COUNT(*) FILTER (WHERE a.joining_status = 2) AS not_joined,
         0 AS hold,
@@ -594,8 +594,8 @@ export class AdminRecruiterPerformanceService {
     const m = month ? this.toMonth(month) : null;
     const start = m ? `${m}-01` : null;
     const dateCondition = useMonth && start
-      ? `(a.updated_at AT TIME ZONE 'UTC')::date >= $1::date AND (a.updated_at AT TIME ZONE 'UTC')::date < $1::date + interval '1 month'`
-      : `(a.updated_at AT TIME ZONE 'UTC')::date = $1::date`;
+      ? `a.call_date >= $1::date AND a.call_date < $1::date + interval '1 month'`
+      : `a.call_date = $1::date`;
     const params = useMonth && start ? [start] : [d];
     const byRemark = await this.dataSource.query(
       `
@@ -653,7 +653,7 @@ export class AdminRecruiterPerformanceService {
    * GET /api/admin/recruiter-performance/interview-status-company-wise?date=
    * Interview status by company for a day (DOD). Date default: today.
    */
-  async getInterviewStatusCompanyWise(date?: string): Promise<{ rows: InterviewStatusCompanyWiseRow[] }> {
+  async getInterviewStatusCompanyWise(date?: string): Promise<{ date: string; rows: InterviewStatusCompanyWiseRow[]; total: Omit<InterviewStatusCompanyWiseRow, 'company_id' | 'company_name'> }> {
     const d = this.toDate(date);
     const rows = await this.dataSource.query(
       `
@@ -662,16 +662,16 @@ export class AdminRecruiterPerformanceService {
         comp.name AS company_name,
         COUNT(*) FILTER (WHERE a.interview_date = $1::date) AS int_sched,
         COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.interview_status IN ('Done', 'Not Attended', 'Rejected')) AS int_done,
-        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.interview_scheduled = true AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled')) AS inter_pending,
-        COUNT(*) FILTER (WHERE a.selection_status = 1) AS selected,
-        COUNT(*) FILTER (WHERE a.joining_status = 1) AS joined,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND (a.interview_status IS NULL OR a.interview_status = 'Scheduled')) AS inter_pending,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.selection_status = 1) AS selected,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.joining_status = 1) AS joined,
         0 AS on_hold,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3)) AS yet_to_join,
-        COUNT(*) FILTER (WHERE a.joining_status = 4) AS backout
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.selection_status = 1 AND (a.joining_status IS NULL OR a.joining_status = 3)) AS yet_to_join,
+        COUNT(*) FILTER (WHERE a.interview_date = $1::date AND a.joining_status = 4) AS backout
       FROM sourcing.applications a
       INNER JOIN sourcing.job_roles jr ON jr.id = a.job_role_id
       INNER JOIN companies comp ON comp.id = jr.company_id
-      WHERE a.interview_date = $1::date OR a.assigned_date = $1::date OR a.call_date = $1::date OR a.joining_date = $1::date OR (a.updated_at AT TIME ZONE 'UTC')::date = $1::date
+      WHERE a.interview_date = $1::date
       GROUP BY jr.company_id, comp.name
       ORDER BY comp.name
       `,
@@ -689,6 +689,16 @@ export class AdminRecruiterPerformanceService {
       yet_to_join: parseInt(r.yet_to_join, 10) || 0,
       backout: parseInt(r.backout, 10) || 0,
     }));
-    return { rows: mapped };
+    const total = {
+      int_sched: mapped.reduce((s, r) => s + r.int_sched, 0),
+      int_done: mapped.reduce((s, r) => s + r.int_done, 0),
+      inter_pending: mapped.reduce((s, r) => s + r.inter_pending, 0),
+      selected: mapped.reduce((s, r) => s + r.selected, 0),
+      joined: mapped.reduce((s, r) => s + r.joined, 0),
+      on_hold: 0,
+      yet_to_join: mapped.reduce((s, r) => s + r.yet_to_join, 0),
+      backout: mapped.reduce((s, r) => s + r.backout, 0),
+    };
+    return { date: d, rows: mapped, total };
   }
 }

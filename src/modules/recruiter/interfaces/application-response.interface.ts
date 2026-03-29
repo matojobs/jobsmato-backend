@@ -20,6 +20,7 @@ export interface ApplicationResponse {
   selection_status?: string | null;
   joining_status?: string | null;
   joining_date?: string | null;
+  expected_joining_date?: string | null;
   backout_date?: string | null;
   backout_reason?: string | null;
   hiring_manager_feedback?: string | null;

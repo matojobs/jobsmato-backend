@@ -582,6 +582,7 @@ export class ApplicationsService {
       selection_status?: string | null;
       joining_status?: string | null;
       joining_date?: string | null;
+      expected_joining_date?: string | null;
       backout_date?: string | null;
       backout_reason?: string | null;
       hiring_manager_feedback?: string | null;
@@ -626,6 +627,7 @@ export class ApplicationsService {
     if (payload.selection_status !== undefined) updatePayload.selectionStatus = payload.selection_status ?? undefined;
     if (payload.joining_status !== undefined) updatePayload.joiningStatus = payload.joining_status ?? undefined;
     if (payload.joining_date !== undefined) updatePayload.joiningDate = payload.joining_date ? new Date(payload.joining_date) : null;
+    if (payload.expected_joining_date !== undefined) updatePayload.expectedJoiningDate = payload.expected_joining_date ? new Date(payload.expected_joining_date) : null;
     if (payload.backout_date !== undefined) updatePayload.backoutDate = payload.backout_date ? new Date(payload.backout_date) : null;
     if (payload.backout_reason !== undefined) updatePayload.backoutReason = payload.backout_reason ?? undefined;
     if (payload.hiring_manager_feedback !== undefined) updatePayload.hiringManagerFeedback = payload.hiring_manager_feedback ?? undefined;
