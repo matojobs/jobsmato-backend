@@ -18,23 +18,13 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const resolvedCallback =
       callbackURL && callbackURL.startsWith('http') ? callbackURL : undefined;
 
-    if (!clientID || !clientSecret) {
-      throw new Error(
-        'Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET. ' +
-          'Get them from Google Cloud Console > APIs & Services > Credentials.',
-      );
-    }
-    if (!resolvedCallback) {
-      throw new Error(
-        'GOOGLE_CALLBACK_URL must be the full API URL, e.g. ' +
-          'https://api.jobsmato.com/api/auth/google/callback or http://localhost:5000/api/auth/google/callback',
-      );
-    }
-
+    // If Google OAuth is not configured, register with placeholder values so the
+    // app still starts. The /auth/google routes simply won't work, which is fine
+    // for deployments that don't use Google login.
     super({
-      clientID,
-      clientSecret,
-      callbackURL: resolvedCallback,
+      clientID: clientID || 'google-oauth-not-configured',
+      clientSecret: clientSecret || 'google-oauth-not-configured',
+      callbackURL: resolvedCallback || 'https://api.jobsmato.com/api/auth/google/callback',
       scope: ['email', 'profile'],
     } as any);
   }
