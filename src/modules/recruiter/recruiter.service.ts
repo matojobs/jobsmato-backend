@@ -559,14 +559,23 @@ export class RecruiterService {
       }
     }
 
+    const ALLOWED_DATE_FIELDS: Record<string, string> = {
+      assigned_date: 'a.assigned_date',
+      call_date: 'a.call_date',
+      interview_date: 'a.interview_date',
+      joining_date: 'a.joining_date',
+      followup_date: 'a.followup_date',
+    };
+    const dateCol = ALLOWED_DATE_FIELDS[query.date_field ?? 'assigned_date'] ?? 'a.assigned_date';
+
     if (query.start_date) {
-      whereClause += ` AND a.assigned_date >= $${paramIndex}`;
+      whereClause += ` AND ${dateCol} >= $${paramIndex}`;
       params.push(query.start_date);
       paramIndex++;
     }
 
     if (query.end_date) {
-      whereClause += ` AND a.assigned_date <= $${paramIndex}`;
+      whereClause += ` AND ${dateCol} <= $${paramIndex}`;
       params.push(query.end_date);
       paramIndex++;
     }

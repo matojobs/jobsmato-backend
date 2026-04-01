@@ -71,6 +71,15 @@ export class ApplicationQueryDto {
   @IsDateString()
   end_date?: string;
 
+  @ApiPropertyOptional({
+    description: 'Which date field to filter on when start_date/end_date are provided',
+    enum: ['assigned_date', 'call_date', 'interview_date', 'joining_date', 'followup_date'],
+    default: 'assigned_date',
+  })
+  @IsOptional()
+  @IsIn(['assigned_date', 'call_date', 'interview_date', 'joining_date', 'followup_date'])
+  date_field?: string;
+
   @ApiPropertyOptional({ description: 'Filter by interview scheduled', example: false })
   @IsOptional()
   @Transform(({ value }) => {
