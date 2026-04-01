@@ -1515,11 +1515,11 @@ export class RecruiterService {
         COUNT(*) FILTER (WHERE a.assigned_date = $2::date OR (a.created_at AT TIME ZONE 'UTC')::date = $2::date) AS sourced,
         COUNT(*) FILTER (WHERE a.call_date = $2::date) AS call_done,
         COUNT(*) FILTER (WHERE a.call_date = $2::date AND a.call_status = 3) AS connected,
-        COUNT(*) FILTER (WHERE a.interested = 1 AND (a.call_date = $2::date OR (a.updated_at AT TIME ZONE 'UTC')::date = $2::date)) AS interested,
-        COUNT(*) FILTER (WHERE a.interested = 2 AND (a.call_date = $2::date OR (a.updated_at AT TIME ZONE 'UTC')::date = $2::date)) AS not_interested,
+        COUNT(*) FILTER (WHERE a.interested = 1 AND a.call_date = $2::date) AS interested,
+        COUNT(*) FILTER (WHERE a.interested = 2 AND a.call_date = $2::date) AS not_interested,
         COUNT(*) FILTER (WHERE a.interview_date = $2::date) AS interview_scheduled,
         COUNT(*) FILTER (WHERE a.interview_date = $2::date AND (a.turnup = true OR (a.interview_status IS NOT NULL AND TRIM(a.interview_status) <> ''))) AS interview_done,
-        COUNT(*) FILTER (WHERE a.selection_status = 1 AND (a.updated_at AT TIME ZONE 'UTC')::date = $2::date) AS selected,
+        COUNT(*) FILTER (WHERE a.selection_status = 1 AND a.interview_date = $2::date) AS selected,
         COUNT(*) FILTER (WHERE a.joining_status = 1 AND a.joining_date = $2::date) AS joined,
         COUNT(*) FILTER (WHERE a.followup_date = $2::date AND a.call_status IS NOT NULL) AS followups_due
       FROM sourcing.applications a
@@ -1530,8 +1530,6 @@ export class RecruiterService {
           OR a.joining_date = $2::date
           OR a.interview_date = $2::date
           OR a.followup_date = $2::date
-          OR (a.created_at AT TIME ZONE 'UTC')::date = $2::date
-          OR (a.updated_at AT TIME ZONE 'UTC')::date = $2::date
         )
       `,
       [recruiterId, today],
