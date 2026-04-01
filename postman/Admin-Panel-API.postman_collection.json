@@ -1,0 +1,450 @@
+{
+	"info": {
+		"_postman_id": "admin-panel-api-collection",
+		"name": "Jobsmato - Admin Panel API",
+		"description": "All admin panel endpoints. Base URL: http://localhost:5000/api (or set base_url).\n\n**Setup:**\n1. Run **Admin Login** first (no auth).\n2. Token is auto-saved to `admin_token`; other requests use it via Bearer auth.\n3. Or set `admin_token` manually in collection variables.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{ "key": "token", "value": "{{admin_token}}", "type": "string" }
+		]
+	},
+	"variable": [
+		{ "key": "base_url", "value": "http://localhost:5000/api" },
+		{ "key": "admin_token", "value": "" },
+		{ "key": "user_id", "value": "" },
+		{ "key": "company_id", "value": "" },
+		{ "key": "job_id", "value": "" },
+		{ "key": "upload_id", "value": "" }
+	],
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Admin Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const j = pm.response.json();",
+									"    const token = j.token || j.user?.accessToken || j.accessToken;",
+									"    if (token) pm.collectionVariables.set('admin_token', token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@jobsmato.com\",\n  \"password\": \"your_password\"\n}"
+						},
+						"url": "{{base_url}}/admin/auth/login",
+						"description": "Admin login. Saves token to admin_token for other requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Permissions",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/auth/permissions",
+						"description": "Returns current admin permissions and role."
+					},
+					"response": []
+				},
+				{
+					"name": "Admin Logout",
+					"request": {
+						"method": "POST",
+						"url": "{{base_url}}/admin/auth/logout",
+						"description": "Logout (clears server session if any)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/dashboard/stats",
+						"description": "Permission: view_analytics. Returns totalUsers, totalJobs, etc."
+					},
+					"response": []
+				},
+				{
+					"name": "Analytics - Users",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/admin/dashboard/analytics/users?days=30",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "dashboard", "analytics", "users"],
+							"query": [{ "key": "days", "value": "30" }]
+						},
+						"description": "Permission: view_analytics. User signup/activity over time."
+					},
+					"response": []
+				},
+				{
+					"name": "Analytics - Jobs",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/admin/dashboard/analytics/jobs?days=30",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "dashboard", "analytics", "jobs"],
+							"query": [{ "key": "days", "value": "30" }]
+						},
+						"description": "Permission: view_analytics. Job posting trends."
+					},
+					"response": []
+				},
+				{
+					"name": "Analytics - Applications",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/admin/dashboard/analytics/applications?days=30",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "dashboard", "analytics", "applications"],
+							"query": [{ "key": "days", "value": "30" }]
+						},
+						"description": "Permission: view_analytics. Application metrics."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "List Users",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/admin/users?page=1&limit=20&sort_by=created_at&sort_order=desc",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "users"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "20" },
+								{ "key": "search", "value": "", "disabled": true },
+								{ "key": "role", "value": "", "disabled": true },
+								{ "key": "status", "value": "", "disabled": true },
+								{ "key": "sort_by", "value": "created_at" },
+								{ "key": "sort_order", "value": "desc" }
+							]
+						},
+						"description": "Permission: view_users. Query: page, limit, search, role, status, sort_by, sort_order (or sortBy, sortOrder)."
+					},
+					"response": []
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"recruiter@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Doe\",\n  \"role\": \"recruiter\",\n  \"phone\": \"+1234567890\",\n  \"location\": \"New York\"\n}"
+						},
+						"url": "{{base_url}}/admin/users",
+						"description": "Permission: create_users. role: job_seeker | employer | recruiter | admin. For recruiter, sourcing.recruiters row is created."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/users/{{user_id}}",
+						"description": "Permission: view_users. Set user_id in vars or path."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Doe\",\n  \"email\": \"new@example.com\",\n  \"role\": \"recruiter\",\n  \"isActive\": true,\n  \"isVerified\": true\n}"
+						},
+						"url": "{{base_url}}/admin/users/{{user_id}}",
+						"description": "Permission: edit_users. Partial body."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"url": "{{base_url}}/admin/users/{{user_id}}",
+						"description": "Permission: delete_users. Admins cannot be deleted."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify User",
+					"request": {
+						"method": "POST",
+						"url": "{{base_url}}/admin/users/{{user_id}}/verify",
+						"description": "Permission: verify_users."
+					},
+					"response": []
+				},
+				{
+					"name": "Suspend User",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reason\": \"Violation of terms\",\n  \"duration\": 7\n}"
+						},
+						"url": "{{base_url}}/admin/users/{{user_id}}/suspend",
+						"description": "Permission: suspend_users. duration in days (optional)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Companies",
+			"item": [
+				{
+					"name": "List Companies",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/companies?page=1&limit=20",
+						"description": "Permission: view_companies."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Company by ID",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/companies/{{company_id}}",
+						"description": "Permission: view_companies."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Company Status",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"approved\",\n  \"adminNotes\": \"Verified\"\n}"
+						},
+						"url": "{{base_url}}/admin/companies/{{company_id}}/status",
+						"description": "Permission: edit_companies."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Company",
+					"request": {
+						"method": "POST",
+						"url": "{{base_url}}/admin/companies/{{company_id}}/verify",
+						"description": "Permission: verify_companies."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Jobs",
+			"item": [
+				{
+					"name": "List Jobs",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/jobs?page=1&limit=20",
+						"description": "Permission: view_jobs. Query: page, limit, status, companyId."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Job by ID",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/jobs/{{job_id}}",
+						"description": "Permission: view_jobs."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Job Status",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"active\",\n  \"adminNotes\": \"Approved\"\n}"
+						},
+						"url": "{{base_url}}/admin/jobs/{{job_id}}/status",
+						"description": "Permission: edit_jobs."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Job Action",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"approve\",\n  \"jobIds\": [1, 2, 3],\n  \"adminNotes\": \"Bulk approved\"\n}"
+						},
+						"url": "{{base_url}}/admin/jobs/bulk-action",
+						"description": "Permission: bulk_operations."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Bulk Upload",
+			"item": [
+				{
+					"name": "Validate Bulk Data",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"data\": []\n}"
+						},
+						"url": "{{base_url}}/admin/jobs/bulk-upload/validate",
+						"description": "Permission: bulk_operations. Validate job data before upload."
+					},
+					"response": []
+				},
+				{
+					"name": "Process Bulk Upload",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"data\": [],\n  \"options\": {}\n}"
+						},
+						"url": "{{base_url}}/admin/jobs/bulk-upload/upload",
+						"description": "Permission: bulk_operations."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Upload Status",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/jobs/bulk-upload/uploads/{{upload_id}}",
+						"description": "Permission: bulk_operations. Set upload_id in collection variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Upload History",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/jobs/bulk-upload/uploads",
+						"description": "Permission: bulk_operations."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Settings",
+			"item": [
+				{
+					"name": "Get Settings",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/settings",
+						"description": "Permission: manage_settings."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Settings",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"settings\": [\n    { \"key\": \"setting_name\", \"value\": \"value\" }\n  ]\n}"
+						},
+						"url": "{{base_url}}/admin/settings",
+						"description": "Permission: manage_settings."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Logs",
+			"item": [
+				{
+					"name": "Error Logs",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/admin/logs/errors?page=1&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["admin", "logs", "errors"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "50" },
+								{ "key": "errorType", "value": "", "disabled": true },
+								{ "key": "statusCode", "value": "", "disabled": true },
+								{ "key": "userId", "value": "", "disabled": true },
+								{ "key": "startDate", "value": "", "disabled": true },
+								{ "key": "endDate", "value": "", "disabled": true }
+							]
+						},
+						"description": "Admin JWT required. Query: page, limit, errorType, statusCode, userId, startDate, endDate."
+					},
+					"response": []
+				},
+				{
+					"name": "Activity Logs",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/activity-logs?page=1&limit=20",
+						"description": "Permission: view_logs."
+					},
+					"response": []
+				},
+				{
+					"name": "Export Activity Logs",
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/admin/activity-logs/export",
+						"description": "Permission: export_data. Same query params as activity logs."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

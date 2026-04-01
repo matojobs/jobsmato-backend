@@ -1,0 +1,322 @@
+{
+  "timestamp": "2026-02-19T08:47:47.034Z",
+  "score": 10,
+  "passedSteps": 7,
+  "totalSteps": 7,
+  "results": {
+    "step1": {
+      "passed": true,
+      "details": [
+        {
+          "partitionsFound": 4,
+          "partitionPruning": "✅ Working",
+          "plan": "Aggregate  (cost=986.40..986.41 rows=1 width=8) (actual time=4.588..4.589 rows=1 loops=1)\n  Output: count(*)\n  Buffers: shared hit=589\n  ->  Append  (cost=0.29..936.56 rows=19935 width=0) (actual time=0.069..3.619 rows=19709 loops=1)\n        Buffers: shared hit=589\n        ->  Index Only Scan using applications_2026_02_assigned_date_idx on sourcing.applications_2026_02 applications_1  (cost=0.29..816.85 rows=19702 width=0) (actual time=0.068..2.340 rows=19709 loops=1)\n              Index Cond: ("
+        }
+      ]
+    },
+    "step2": {
+      "passed": true,
+      "details": [
+        {
+          "normalization": true,
+          "deduplication": true,
+          "indexUsage": true,
+          "plan": "Index Scan using idx_candidates_phone_hash on candidates  (cost=0.28..8.29 rows=1 width=90) (actual time=0.021..0.022 rows=1 loops=1)\n  Index Cond: (phone_hash = '50766088'::bigint)\n  Buffers: shared hit=3\nPlanning:\n  Buffers: shared hit=29\nPlanning Time: 0.470 ms\nExecution Time: 0.045 ms"
+        }
+      ]
+    },
+    "step3": {
+      "passed": true,
+      "details": [
+        {
+          "beforeCounts": {
+            "recruiters": "5",
+            "portals": "10",
+            "candidates": "1000",
+            "applications": "38094"
+          },
+          "afterCounts": {
+            "recruiters": "5",
+            "portals": "10",
+            "candidates": "1000",
+            "applications": "42148"
+          },
+          "orphanedApplications": 0,
+          "duplicateApplications": 2665
+        }
+      ]
+    },
+    "step4": {
+      "passed": true,
+      "details": [
+        {
+          "bulkInsertRowsPerSec": 24752,
+          "candidateLookupMs": 2,
+          "dashboardQueryMs": 3,
+          "targetsMet": {
+            "bulkInsert": true,
+            "candidateLookup": true,
+            "dashboardQuery": true
+          }
+        }
+      ]
+    },
+    "step5": {
+      "passed": true,
+      "details": [
+        {
+          "uniqueIndexExists": true,
+          "refreshTimeMs": 49,
+          "locksDetected": 0
+        }
+      ]
+    },
+    "step6": {
+      "passed": true,
+      "details": [
+        {
+          "deadTuples": [
+            {
+              "schemaname": "sourcing",
+              "tablename": "job_roles",
+              "n_dead_tup": "20",
+              "n_live_tup": "20",
+              "dead_tuple_percent": "100.00",
+              "last_autovacuum": null
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "candidates",
+              "n_dead_tup": "864",
+              "n_live_tup": "1000",
+              "dead_tuple_percent": "86.40",
+              "last_autovacuum": "2026-02-19T08:47:26.224Z"
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "applications_2026_02",
+              "n_dead_tup": "6",
+              "n_live_tup": "42148",
+              "dead_tuple_percent": "0.01",
+              "last_autovacuum": "2026-02-18T18:26:49.863Z"
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "mv_recruiter_daily_stats",
+              "n_dead_tup": "0",
+              "n_live_tup": "154",
+              "dead_tuple_percent": "0.00",
+              "last_autovacuum": "2026-02-19T08:47:26.246Z"
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "portals",
+              "n_dead_tup": "0",
+              "n_live_tup": "10",
+              "dead_tuple_percent": "0.00",
+              "last_autovacuum": null
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "raw_candidate_logs_2026_03",
+              "n_dead_tup": "0",
+              "n_live_tup": "0",
+              "dead_tuple_percent": "0",
+              "last_autovacuum": null
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "applications_2026_03",
+              "n_dead_tup": "0",
+              "n_live_tup": "0",
+              "dead_tuple_percent": "0",
+              "last_autovacuum": null
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "applications",
+              "n_dead_tup": "0",
+              "n_live_tup": "0",
+              "dead_tuple_percent": "0",
+              "last_autovacuum": null
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "recruiters",
+              "n_dead_tup": "0",
+              "n_live_tup": "5",
+              "dead_tuple_percent": "0.00",
+              "last_autovacuum": null
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "raw_candidate_logs",
+              "n_dead_tup": "0",
+              "n_live_tup": "0",
+              "dead_tuple_percent": "0",
+              "last_autovacuum": null
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "raw_candidate_logs_2026_02",
+              "n_dead_tup": "0",
+              "n_live_tup": "238200",
+              "dead_tuple_percent": "0.00",
+              "last_autovacuum": "2026-02-18T18:26:49.127Z"
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "import_batches",
+              "n_dead_tup": "0",
+              "n_live_tup": "0",
+              "dead_tuple_percent": "0",
+              "last_autovacuum": null
+            },
+            {
+              "schemaname": "sourcing",
+              "tablename": "call_logs",
+              "n_dead_tup": "0",
+              "n_live_tup": "0",
+              "dead_tuple_percent": "0",
+              "last_autovacuum": null
+            }
+          ],
+          "unusedIndexes": 27,
+          "bloatDetected": 0
+        }
+      ]
+    },
+    "step7": {
+      "passed": true,
+      "details": [
+        {
+          "crossSchemaFKs": 1,
+          "autovacuumConfigured": 0
+        }
+      ]
+    }
+  },
+  "partitions": [
+    {
+      "table_name": "sourcing.applications",
+      "partition_name": "sourcing.applications_2026_02",
+      "size_bytes": "8912896",
+      "size_pretty": "8704 kB",
+      "row_count": "42148"
+    },
+    {
+      "table_name": "sourcing.applications",
+      "partition_name": "sourcing.applications_2026_03",
+      "size_bytes": "65536",
+      "size_pretty": "64 kB",
+      "row_count": "0"
+    },
+    {
+      "table_name": "sourcing.raw_candidate_logs",
+      "partition_name": "sourcing.raw_candidate_logs_2026_02",
+      "size_bytes": "62373888",
+      "size_pretty": "59 MB",
+      "row_count": "238200"
+    },
+    {
+      "table_name": "sourcing.raw_candidate_logs",
+      "partition_name": "sourcing.raw_candidate_logs_2026_03",
+      "size_bytes": "32768",
+      "size_pretty": "32 kB",
+      "row_count": "0"
+    }
+  ],
+  "tableStats": [
+    {
+      "schemaname": "sourcing",
+      "tablename": "raw_candidate_logs_2026_02",
+      "total_size": "59 MB",
+      "row_count": "238200",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "applications_2026_02",
+      "total_size": "8704 kB",
+      "row_count": "42148",
+      "dead_rows": "6"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "candidates",
+      "total_size": "1160 kB",
+      "row_count": "1000",
+      "dead_rows": "864"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "mv_recruiter_daily_stats",
+      "total_size": "96 kB",
+      "row_count": "154",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "recruiters",
+      "total_size": "80 kB",
+      "row_count": "5",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "job_roles",
+      "total_size": "80 kB",
+      "row_count": "20",
+      "dead_rows": "20"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "applications_2026_03",
+      "total_size": "64 kB",
+      "row_count": "0",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "portals",
+      "total_size": "48 kB",
+      "row_count": "10",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "call_logs",
+      "total_size": "40 kB",
+      "row_count": "0",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "import_batches",
+      "total_size": "40 kB",
+      "row_count": "0",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "raw_candidate_logs_2026_03",
+      "total_size": "32 kB",
+      "row_count": "0",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "applications",
+      "total_size": "0 bytes",
+      "row_count": "0",
+      "dead_rows": "0"
+    },
+    {
+      "schemaname": "sourcing",
+      "tablename": "raw_candidate_logs",
+      "total_size": "0 bytes",
+      "row_count": "0",
+      "dead_rows": "0"
+    }
+  ]
+}

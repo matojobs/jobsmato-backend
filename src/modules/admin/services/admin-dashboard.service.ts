@@ -5,6 +5,7 @@ import { User } from '../../../entities/user.entity';
 import { Job, JobStatus } from '../../../entities/job.entity';
 import { Company } from '../../../entities/company.entity';
 import { AdminActionLog } from '../../../entities/admin-action-log.entity';
+import { JobApplication, ApplicationStatus } from '../../../entities/job-application.entity';
 
 export interface DashboardStats {
   totalUsers: number;
@@ -42,6 +43,8 @@ export class AdminDashboardService {
     private companyRepository: Repository<Company>,
     @InjectRepository(AdminActionLog)
     private adminActionLogRepository: Repository<AdminActionLog>,
+    @InjectRepository(JobApplication)
+    private applicationRepository: Repository<JobApplication>,
   ) {}
 
   async getDashboardStats(): Promise<DashboardStats> {
@@ -53,6 +56,7 @@ export class AdminDashboardService {
       totalJobs,
       totalCompanies,
       totalApplications,
+      pendingApplications,
       activeJobs,
       newUsersToday,
       newJobsToday,
@@ -60,9 +64,8 @@ export class AdminDashboardService {
       this.userRepository.count(),
       this.jobRepository.count(),
       this.companyRepository.count(),
-      // Note: You'll need to add Application entity and repository
-      // this.applicationRepository.count(),
-      0, // Placeholder for now
+      this.applicationRepository.count(),
+      this.applicationRepository.count({ where: { status: ApplicationStatus.PENDING } }),
       this.jobRepository.count({ where: { status: JobStatus.ACTIVE } }),
       this.userRepository.count({
         where: {
@@ -82,7 +85,7 @@ export class AdminDashboardService {
       totalCompanies,
       totalApplications,
       activeJobs,
-      pendingApplications: 0, // Placeholder - need Application entity
+      pendingApplications,
       newUsersToday,
       newJobsToday,
       userGrowthRate: await this.calculateUserGrowthRate(),
@@ -182,6 +185,21 @@ export class AdminDashboardService {
       .limit(10)
       .getRawMany();
 
+    const jobPerformance = await this.jobRepository
+      .createQueryBuilder('job')
+      .leftJoin('job.applications', 'app')
+      .select('job.id', 'jobId')
+      .addSelect('job.title', 'title')
+      .addSelect('job.status', 'status')
+      .addSelect('COUNT(app.id)', 'applicationCount')
+      .where('job.createdAt >= :startDate', { startDate })
+      .groupBy('job.id')
+      .addGroupBy('job.title')
+      .addGroupBy('job.status')
+      .orderBy('COUNT(app.id)', 'DESC')
+      .limit(20)
+      .getRawMany();
+
     return {
       jobPostingTrends: jobPostingTrends.map(item => ({
         date: item.date,
@@ -189,7 +207,12 @@ export class AdminDashboardService {
       })),
       categoryDistribution,
       topCompanies,
-      jobPerformance: [], // Placeholder - implement job performance metrics
+      jobPerformance: jobPerformance.map((r) => ({
+        jobId: parseInt(r.jobId, 10),
+        title: r.title,
+        status: r.status,
+        applicationCount: parseInt(r.applicationCount, 10),
+      })),
     };
   }
 
@@ -234,7 +257,71 @@ export class AdminDashboardService {
   }
 
   private async calculateApplicationRate(): Promise<number> {
-    // Placeholder - implement when Application entity is available
-    return 0;
+    const [totalJobs, totalApplications] = await Promise.all([
+      this.jobRepository.count(),
+      this.applicationRepository.count(),
+    ]);
+    if (totalJobs === 0) return 0;
+    return totalApplications / totalJobs;
+  }
+
+  async getApplicationAnalytics(days: number = 30): Promise<{
+    applicationRates: TimeSeriesData[];
+    applicationStatus: { status: string; count: number }[];
+    topJobs: { jobId: number; title: string; applicationCount: number }[];
+    applicationTrends: TimeSeriesData[];
+  }> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const applicationTrends = await this.applicationRepository
+      .createQueryBuilder('app')
+      .select('DATE(app.createdAt)', 'date')
+      .addSelect('COUNT(*)', 'value')
+      .where('app.createdAt >= :startDate', { startDate })
+      .groupBy('DATE(app.createdAt)')
+      .orderBy('DATE(app.createdAt)', 'ASC')
+      .getRawMany();
+
+    const applicationStatus = await this.applicationRepository
+      .createQueryBuilder('app')
+      .select('app.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('app.createdAt >= :startDate', { startDate })
+      .groupBy('app.status')
+      .getRawMany();
+
+    const topJobs = await this.applicationRepository
+      .createQueryBuilder('app')
+      .innerJoin('app.job', 'job')
+      .select('job.id', 'jobId')
+      .addSelect('job.title', 'title')
+      .addSelect('COUNT(app.id)', 'applicationCount')
+      .where('app.createdAt >= :startDate', { startDate })
+      .groupBy('job.id')
+      .addGroupBy('job.title')
+      .orderBy('COUNT(app.id)', 'DESC')
+      .limit(10)
+      .getRawMany();
+
+    const applicationRates = await this.applicationRepository
+      .createQueryBuilder('app')
+      .select('DATE(app.createdAt)', 'date')
+      .addSelect('COUNT(*)', 'value')
+      .where('app.createdAt >= :startDate', { startDate })
+      .groupBy('DATE(app.createdAt)')
+      .orderBy('DATE(app.createdAt)', 'ASC')
+      .getRawMany();
+
+    return {
+      applicationRates: applicationRates.map((r) => ({ date: r.date, value: parseInt(r.value, 10) })),
+      applicationStatus: applicationStatus.map((r) => ({ status: r.status, count: parseInt(r.count, 10) })),
+      topJobs: topJobs.map((r) => ({
+        jobId: parseInt(r.jobId, 10),
+        title: r.title,
+        applicationCount: parseInt(r.applicationCount, 10),
+      })),
+      applicationTrends: applicationTrends.map((r) => ({ date: r.date, value: parseInt(r.value, 10) })),
+    };
   }
 }

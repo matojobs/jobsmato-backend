@@ -18,6 +18,7 @@ export enum UserRole {
   JOB_SEEKER = 'job_seeker',
   EMPLOYER = 'employer',
   ADMIN = 'admin',
+  RECRUITER = 'recruiter',
 }
 
 export enum UserStatus {
@@ -271,6 +272,14 @@ export class User {
   @Column({ default: true })
   isActive: boolean;
 
+  /**
+   * When true, recruiter can select any company in the job portal dropdown and post jobs for any company.
+   * Only applies to users with role recruiter. Set by admin.
+   */
+  @ApiProperty({ example: false, description: 'Recruiter can post jobs for any company on job portal' })
+  @Column({ name: 'can_post_for_any_company', default: false })
+  canPostForAnyCompany: boolean;
+
   @ApiProperty({ example: false })
   @Column({ default: false })
   isVerified: boolean;
@@ -294,6 +303,10 @@ export class User {
   // Relations
   @OneToOne('Company', 'user', { cascade: true })
   company: any;
+
+  /** Companies this user is a member of (via company_members). */
+  @OneToMany('CompanyMember', 'user')
+  companyMembers: any[];
 
   @OneToMany('JobApplication', 'user')
   applications: any[];

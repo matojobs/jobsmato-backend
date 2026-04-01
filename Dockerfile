@@ -41,12 +41,14 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 
-# Copy OAuth credentials if they exist (optional for deployment)
-# These files are only needed if using Google OAuth/Drive
-COPY --chown=nestjs:nodejs credentials.json* ./
-COPY --chown=nestjs:nodejs token.json* ./
-COPY --chown=nestjs:nodejs jobsmato-folder-config.json* ./
-RUN mkdir -p uploads logs && chown -R nestjs:nodejs uploads logs
+# Copy migration runners (run on deploy so prod DB stays in sync)
+COPY --from=builder --chown=nestjs:nodejs /app/scripts/run-migrations.js ./scripts/run-migrations.js
+COPY --from=builder --chown=nestjs:nodejs /app/scripts/fix-prod-sourcing-migrations.js ./scripts/fix-prod-sourcing-migrations.js
+COPY --from=builder --chown=nestjs:nodejs /app/scripts/run-sourcing-migrations.js ./scripts/run-sourcing-migrations.js
+
+# OAuth credentials are optional (Google Drive feature) — mount via volume or copy manually
+# COPY --chown=nestjs:nodejs credentials.json token.json config/jobsmato-folder-config.json ./
+RUN mkdir -p uploads logs config && chown -R nestjs:nodejs uploads logs config
 
 # Switch to non-root user
 USER nestjs

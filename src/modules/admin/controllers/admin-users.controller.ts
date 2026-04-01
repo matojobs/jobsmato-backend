@@ -17,7 +17,10 @@ import {
   ApiBearerAuth,
   ApiQuery,
   ApiParam,
+  ApiProperty,
 } from '@nestjs/swagger';
+import { IsOptional, IsNumber, IsString, IsIn, Min, Max, IsEmail, MinLength, IsBoolean } from 'class-validator';
+import { Type } from 'class-transformer';
 import { AdminUsersService } from '../services/admin-users.service';
 import { AdminAuditService } from '../services/admin-audit.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -27,27 +30,122 @@ import { AdminPermissions } from '../decorators/admin-permissions.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { User } from '../../../entities/user.entity';
 
+/** Query DTO for GET /admin/users. All properties optional; must be whitelisted for global ValidationPipe. */
 export class GetUsersQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
   page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(100)
   limit?: number = 20;
+
+  @IsOptional()
+  @IsString()
   search?: string;
+
+  @IsOptional()
+  @IsString()
   role?: string;
+
+  @IsOptional()
+  @IsString()
   status?: string;
-  sortBy?: string = 'createdAt';
-  sortOrder?: 'asc' | 'desc' = 'desc';
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortOrder?: 'asc' | 'desc';
+
+  @IsOptional()
+  @IsString()
+  sort_by?: string;
+
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sort_order?: 'asc' | 'desc';
+}
+
+export class CreateUserDto {
+  @ApiProperty({ example: 'recruiter@example.com' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'password123', minLength: 6 })
+  @IsString()
+  @MinLength(6)
+  password: string;
+
+  @ApiProperty({ example: 'Jane' })
+  @IsString()
+  firstName: string;
+
+  @ApiProperty({ example: 'Doe' })
+  @IsString()
+  lastName: string;
+
+  @ApiProperty({ example: 'recruiter', enum: ['job_seeker', 'employer', 'recruiter', 'admin'] })
+  @IsString()
+  @IsIn(['job_seeker', 'employer', 'recruiter', 'admin'])
+  role: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  location?: string;
 }
 
 export class UpdateUserDto {
+  @IsOptional()
+  @IsString()
   firstName?: string;
+
+  @IsOptional()
+  @IsString()
   lastName?: string;
+
+  @IsOptional()
+  @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['job_seeker', 'employer', 'recruiter', 'admin'])
   role?: string;
+
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   isVerified?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canPostForAnyCompany?: boolean;
 }
 
 export class SuspendUserDto {
+  @IsString()
   reason: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
   duration?: number; // in days
 }
 
@@ -75,6 +173,30 @@ export class AdminUsersController {
   @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
   async getUsers(@Query() query: GetUsersQueryDto) {
     return this.adminUsersService.getUsers(query);
+  }
+
+  @Post()
+  @AdminPermissions(AdminPermission.CREATE_USERS)
+  @UseGuards(AdminPermissionGuard)
+  @ApiOperation({ summary: 'Create a new user (job seeker, employer, or recruiter)' })
+  @ApiResponse({ status: 201, description: 'User created successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid input or email already exists' })
+  async createUser(
+    @Body() createDto: CreateUserDto,
+    @CurrentUser() admin: User,
+  ) {
+    const result = await this.adminUsersService.createUser(createDto);
+    await this.adminAuditService.logAction(
+      admin.id,
+      'create',
+      'user',
+      result.user.id,
+      `Created user ${result.user.email} (role: ${result.user.role})`,
+      { email: result.user.email, role: result.user.role },
+      '127.0.0.1',
+      'Admin Panel',
+    );
+    return result;
   }
 
   @Get(':id')

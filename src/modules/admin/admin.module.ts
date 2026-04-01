@@ -6,6 +6,7 @@ import { Company } from '../../entities/company.entity';
 import { AdminActionLog } from '../../entities/admin-action-log.entity';
 import { BulkUpload } from '../../entities/bulk-upload.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
+import { JobApplication } from '../../entities/job-application.entity';
 import { AuthModule } from '../auth/auth.module';
 
 // Controllers
@@ -14,10 +15,13 @@ import { AdminDashboardController } from './controllers/admin-dashboard.controll
 import { AdminUsersController } from './controllers/admin-users.controller';
 import { AdminCompaniesController } from './controllers/admin-companies.controller';
 import { AdminJobsController } from './controllers/admin-jobs.controller';
+import { AdminApplicationsController } from './controllers/admin-applications.controller';
 import { AdminBulkUploadController } from './controllers/admin-bulk-upload.controller';
 import { AdminSettingsController } from './controllers/admin-settings.controller';
 import { AdminActivityController } from './controllers/admin-activity.controller';
 import { AdminLogsController } from './controllers/admin-logs.controller';
+import { AdminRecruiterPerformanceController } from './controllers/admin-recruiter-performance.controller';
+import { AdminSourcingController } from './controllers/admin-sourcing.controller';
 
 // Services
 import { AdminService } from './services/admin.service';
@@ -25,10 +29,13 @@ import { AdminDashboardService } from './services/admin-dashboard.service';
 import { AdminUsersService } from './services/admin-users.service';
 import { AdminCompaniesService } from './services/admin-companies.service';
 import { AdminJobsService } from './services/admin-jobs.service';
+import { AdminApplicationsService } from './services/admin-applications.service';
 import { AdminBulkUploadService } from './services/admin-bulk-upload.service';
 import { AdminSettingsService } from './services/admin-settings.service';
 import { AdminActivityService } from './services/admin-activity.service';
 import { AdminAuditService } from './services/admin-audit.service';
+import { AdminRecruiterPerformanceService } from './services/admin-recruiter-performance.service';
+import { AdminSourcingService } from './services/admin-sourcing.service';
 import { CommonModule } from '../../common/common.module';
 
 @Module({
@@ -40,6 +47,7 @@ import { CommonModule } from '../../common/common.module';
       AdminActionLog,
       BulkUpload,
       SystemSetting,
+      JobApplication,
     ]),
     AuthModule,
     CommonModule,
@@ -50,10 +58,13 @@ import { CommonModule } from '../../common/common.module';
     AdminUsersController,
     AdminCompaniesController,
     AdminJobsController,
+    AdminApplicationsController,
     AdminBulkUploadController,
     AdminSettingsController,
     AdminActivityController,
     AdminLogsController,
+    AdminRecruiterPerformanceController,
+    AdminSourcingController,
   ],
   providers: [
     AdminService,
@@ -61,12 +72,15 @@ import { CommonModule } from '../../common/common.module';
     AdminUsersService,
     AdminCompaniesService,
     AdminJobsService,
+    AdminApplicationsService,
     AdminBulkUploadService,
     AdminSettingsService,
     AdminActivityService,
     AdminAuditService,
+    AdminRecruiterPerformanceService,
+    AdminSourcingService,
   ],
   exports: [AdminService, AdminAuditService],
 })
-export class AdminModule {}
+export class AdminModule { }
 

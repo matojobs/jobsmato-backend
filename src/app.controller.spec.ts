@@ -8,15 +8,28 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        {
+          provide: AppService,
+          useValue: {
+            getHealthStatus: jest.fn(),
+          },
+        },
+      ],
     }).compile();
 
     appController = app.get<AppController>(AppController);
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return health check payload', () => {
+      const result = appController.getHello();
+
+      expect(result).toEqual({
+        message: 'Jobsmato API is running!',
+        status: 'healthy',
+        timestamp: expect.any(String),
+      });
     });
   });
 });

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEnum, IsNumber, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsNumber, IsEmail, IsBoolean, ValidateIf, IsIn } from 'class-validator';
 import { ApplicationStatus } from '../../../entities/job-application.entity';
 
 export class CreateApplicationDto {
@@ -37,6 +37,45 @@ export class UpdateApplicationStatusDto {
   status: ApplicationStatus;
 }
 
+/** Call status options for Pending Applications (and Add/Edit Candidate). */
+export const RECRUITER_CALL_STATUS_OPTIONS = [
+  'Connected',
+  'RNR',
+  'Busy',
+  'Switched Off',
+  'Incoming Off',
+  'Call Back',
+  'Invalid',
+  'Wrong Number',
+  'Out of network',
+] as const;
+
+export class UpdateRecruiterCallDto {
+  @ApiProperty({ example: '2024-01-15', description: 'Date recruiter called the candidate (YYYY-MM-DD)' })
+  @IsString()
+  callDate: string;
+
+  @ApiProperty({
+    example: 'Connected',
+    description: 'Call status. Interested is required only when Connected.',
+    enum: RECRUITER_CALL_STATUS_OPTIONS,
+  })
+  @IsString()
+  @IsIn([...RECRUITER_CALL_STATUS_OPTIONS])
+  callStatus: string;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether candidate is interested. Required when callStatus is "Connected"; use null otherwise (Not applicable).',
+    enum: [true, false],
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_o, v) => v != null)
+  @IsBoolean()
+  interested?: boolean | null;
+}
+
 export class ApplicationResponseDto {
   @ApiProperty({ example: 1 })
   id: number;
@@ -71,6 +110,32 @@ export class ApplicationResponseDto {
 
   @ApiProperty({ example: '2023-12-01T00:00:00.000Z' })
   updatedAt: string;
+
+  @ApiProperty({ example: '2024-01-15', required: false, description: 'Filled by recruiter on Pending Applications' })
+  recruiterCallDate?: string | null;
+
+  @ApiProperty({ example: 'reached', required: false })
+  recruiterCallStatus?: string | null;
+
+  @ApiProperty({ example: true, required: false })
+  recruiterInterested?: boolean | null;
+
+  @ApiProperty({ required: false, description: 'Recruiter Edit Candidate fields (job portal)' })
+  portal?: string | null;
+  assignedDate?: string | null;
+  recruiterNotes?: string | null;
+  notInterestedRemark?: string | null;
+  interviewScheduled?: boolean | null;
+  interviewDate?: string | null;
+  turnup?: boolean | null;
+  interviewStatus?: string | null;
+  selectionStatus?: string | null;
+  joiningStatus?: string | null;
+  joiningDate?: string | null;
+  backoutDate?: string | null;
+  backoutReason?: string | null;
+  hiringManagerFeedback?: string | null;
+  followupDate?: string | null;
 
   @ApiProperty({ example: '$80,000 - $120,000', required: false })
   expectedSalary?: string;

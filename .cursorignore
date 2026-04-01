@@ -1,0 +1,31 @@
+﻿# Dependencies and build outputs (reduces indexing and workspace load)
+node_modules/
+dist/
+build/
+coverage/
+.next/
+.nuxt/
+
+# Logs and caches
+*.log
+*.log.gz
+logs/
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+# Sensitive (keeps them out of index)
+.env
+.env.*
+*.pem
+*.key
+token.json
+credentials.json
+ssh-keys/id_ed25519*
+ssh-keys/*_rsa
+
+# Backups and binaries
+backups/
+*.sql
+*.tar
+*.tar.gz

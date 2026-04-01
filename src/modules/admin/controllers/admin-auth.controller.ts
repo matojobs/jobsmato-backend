@@ -4,6 +4,7 @@ import {
   Get,
   Body,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -30,9 +31,9 @@ export class AdminAuthController {
   async adminLogin(@Body() loginDto: LoginDto) {
     const result = await this.authService.login(loginDto);
     
-    // Check if user is admin
+    // Only admin role can use admin login
     if (result.role !== 'admin') {
-      throw new Error('Admin access required');
+      throw new UnauthorizedException('Admin access required. Use the correct portal for your role.');
     }
 
     return {
@@ -85,16 +86,23 @@ export class AdminAuthController {
     if (user.role === 'admin') {
       return [
         ...basePermissions,
+        'create_users',
         'edit_users',
         'delete_users',
         'verify_users',
         'suspend_users',
+        'create_companies',
         'edit_companies',
+        'delete_companies',
         'verify_companies',
         'suspend_companies',
+        'create_jobs',
         'edit_jobs',
         'delete_jobs',
         'approve_jobs',
+        'view_applications',
+        'edit_applications',
+        'delete_applications',
         'bulk_operations',
         'manage_settings',
         'view_logs',

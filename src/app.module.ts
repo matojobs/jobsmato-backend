@@ -19,6 +19,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { EmailModule } from './modules/email/email.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { FilesModule } from './modules/files/files.module';
+import { RecruiterModule } from './modules/recruiter/recruiter.module';
 import { CommonModule } from './common/common.module';
 
 @Module({
@@ -57,6 +58,7 @@ import { CommonModule } from './common/common.module';
     AuthModule,
     JobsModule,
     UsersModule,
+    RecruiterModule, // Must be before ApplicationsModule to handle /api/applications for recruiters
     ApplicationsModule,
     CompaniesModule,
     UploadModule,

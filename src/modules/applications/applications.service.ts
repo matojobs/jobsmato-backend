@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,8 +11,9 @@ import { Repository } from 'typeorm';
 import { JobApplication, ApplicationStatus } from '../../entities/job-application.entity';
 import { Job } from '../../entities/job.entity';
 import { User, UserRole } from '../../entities/user.entity';
-import { CreateApplicationDto, UpdateApplicationStatusDto, ApplicationResponseDto } from './dto/application.dto';
+import { CreateApplicationDto, UpdateApplicationStatusDto, UpdateRecruiterCallDto, ApplicationResponseDto } from './dto/application.dto';
 import { EmailService } from '../email/email.service';
+import { CompaniesService } from '../companies/companies.service';
 
 @Injectable()
 export class ApplicationsService {
@@ -23,6 +25,7 @@ export class ApplicationsService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private emailService: EmailService,
+    private companiesService: CompaniesService,
   ) {}
 
   async create(createApplicationDto: CreateApplicationDto, userId: number): Promise<ApplicationResponseDto> {
@@ -180,14 +183,12 @@ export class ApplicationsService {
       throw new NotFoundException('Application not found');
     }
 
-    // Check if user owns this application or is the job owner
     if (application.userId !== userId) {
       const job = await this.jobRepository.findOne({
         where: { id: application.jobId },
         relations: ['company'],
       });
-
-      if (job?.company?.userId !== userId) {
+      if (!job || !(await this.companiesService.canUserAccessCompany(userId, job.companyId))) {
         throw new ForbiddenException('You can only view your own applications');
       }
     }
@@ -203,6 +204,7 @@ export class ApplicationsService {
         'user.phone',
         'user.location',
         'user.avatar',
+        'user.dateOfBirth',
         'user.role',
         'user.bio',
         'user.experience',
@@ -245,8 +247,7 @@ export class ApplicationsService {
       throw new NotFoundException('Application not found');
     }
 
-    // Check if user is the job owner
-    if (application.job?.company?.userId !== userId) {
+    if (!application.job || !(await this.companiesService.canUserAccessCompany(userId, application.job.companyId))) {
       throw new ForbiddenException('You can only update applications for your own jobs');
     }
 
@@ -370,7 +371,7 @@ export class ApplicationsService {
       throw new NotFoundException('Job not found');
     }
 
-    if (job?.company?.userId !== userId) {
+    if (!(await this.companiesService.canUserAccessCompany(userId, job.companyId))) {
       throw new ForbiddenException('You can only view applications for your own jobs');
     }
 
@@ -423,6 +424,250 @@ export class ApplicationsService {
     }
 
     return applications.map((application) => this.formatApplicationResponse(application));
+  }
+
+  /**
+   * Pending job applications for recruiter: applications for jobs they have access to where recruiter has not yet filled call date/status/interested.
+   */
+  async getPendingJobApplicationsForRecruiter(recruiterUserId: number): Promise<ApplicationResponseDto[]> {
+    const companyIds = await this.companiesService.getCompanyIdsForUser(recruiterUserId);
+    if (!companyIds.length) return [];
+
+    const jobs = await this.jobRepository.find({ where: companyIds.map(id => ({ companyId: id })), select: ['id'] });
+    const jobIds = jobs.map(j => j.id);
+    if (!jobIds.length) return [];
+
+    const applications = await this.applicationRepository
+      .createQueryBuilder('application')
+      .innerJoinAndSelect('application.job', 'job')
+      .innerJoinAndSelect('job.company', 'company')
+      .where('application.jobId IN (:...jobIds)', { jobIds })
+      .andWhere('application.recruiter_call_date IS NULL')
+      .orderBy('application.createdAt', 'DESC')
+      .getMany();
+
+    const userIds = applications.map(app => app.userId).filter((id, i, a) => a.indexOf(id) === i);
+    if (userIds.length > 0) {
+      const users = await this.userRepository
+        .createQueryBuilder('user')
+        .select([
+          'user.id', 'user.firstName', 'user.lastName', 'user.email', 'user.phone', 'user.location', 'user.avatar',
+          'user.dateOfBirth', 'user.role', 'user.bio', 'user.experience', 'user.education', 'user.skills', 'user.technicalSkills',
+          'user.functionalSkills', 'user.currentJobTitle', 'user.portfolio', 'user.linkedin', 'user.github',
+          'user.resume', 'user.salaryExpectation', 'user.createdAt', 'user.updatedAt',
+        ])
+        .where('user.id IN (:...userIds)', { userIds })
+        .getMany();
+      const userMap = new Map(users.map(u => [u.id, u]));
+      applications.forEach(app => { app.user = userMap.get(app.userId); });
+    }
+    return applications.map((a) => this.formatApplicationResponse(a));
+  }
+
+  /**
+   * Job portal applications the recruiter has worked on (filled call date/status).
+   * Use this for "Recruiter work" / "Candidates" so submissions from Pending Applications appear there.
+   */
+  async getRecruiterWorkJobApplications(recruiterUserId: number): Promise<ApplicationResponseDto[]> {
+    const companyIds = await this.companiesService.getCompanyIdsForUser(recruiterUserId);
+    if (!companyIds.length) return [];
+
+    const jobs = await this.jobRepository.find({ where: companyIds.map(id => ({ companyId: id })), select: ['id'] });
+    const jobIds = jobs.map(j => j.id);
+    if (!jobIds.length) return [];
+
+    const applications = await this.applicationRepository
+      .createQueryBuilder('application')
+      .innerJoinAndSelect('application.job', 'job')
+      .innerJoinAndSelect('job.company', 'company')
+      .where('application.jobId IN (:...jobIds)', { jobIds })
+      .andWhere('application.recruiter_call_date IS NOT NULL')
+      .orderBy('application.recruiter_call_date', 'DESC')
+      .addOrderBy('application.createdAt', 'DESC')
+      .getMany();
+
+    const userIds = applications.map(app => app.userId).filter((id, i, a) => a.indexOf(id) === i);
+    if (userIds.length > 0) {
+      const users = await this.userRepository
+        .createQueryBuilder('user')
+        .select([
+          'user.id', 'user.firstName', 'user.lastName', 'user.email', 'user.phone', 'user.location', 'user.avatar',
+          'user.dateOfBirth', 'user.role', 'user.bio', 'user.experience', 'user.education', 'user.skills', 'user.technicalSkills',
+          'user.functionalSkills', 'user.currentJobTitle', 'user.portfolio', 'user.linkedin', 'user.github',
+          'user.resume', 'user.salaryExpectation', 'user.createdAt', 'user.updatedAt',
+        ])
+        .where('user.id IN (:...userIds)', { userIds })
+        .getMany();
+      const userMap = new Map(users.map(u => [u.id, u]));
+      applications.forEach(app => { app.user = userMap.get(app.userId); });
+    }
+    return applications.map((a) => this.formatApplicationResponse(a));
+  }
+
+  /**
+   * Recruiter fills call date, call status, interested for a job application (Pending Applications flow).
+   */
+  async updateRecruiterCall(id: number, recruiterUserId: number, dto: UpdateRecruiterCallDto): Promise<ApplicationResponseDto> {
+    const application = await this.applicationRepository
+      .createQueryBuilder('application')
+      .innerJoinAndSelect('application.job', 'job')
+      .innerJoinAndSelect('job.company', 'company')
+      .where('application.id = :id', { id })
+      .getOne();
+
+    if (!application) throw new NotFoundException('Application not found');
+    if (!(await this.companiesService.canUserAccessCompany(recruiterUserId, application.job.companyId))) {
+      throw new ForbiddenException('You can only update applications for jobs you have access to');
+    }
+
+    const callDate = dto.callDate ? new Date(dto.callDate) : null;
+    const rawStatus = (dto.callStatus ?? '').trim();
+    const callStatusNormalized = rawStatus === 'Connected' ? 'Connected' : rawStatus || null;
+
+    if (callStatusNormalized === 'Connected' && (dto.interested !== true && dto.interested !== false)) {
+      throw new BadRequestException('Interested is required when Call status is Connected');
+    }
+
+    const updatePayload: Partial<JobApplication> = {
+      recruiterCallDate: callDate,
+      recruiterCallStatus: callStatusNormalized,
+      recruiterInterested: dto.interested ?? null,
+    };
+    // So employer sees status change on job portal: move from pending to reviewing when recruiter fills call details
+    if (application.status === ApplicationStatus.PENDING) {
+      updatePayload.status = ApplicationStatus.REVIEWING;
+    }
+    await this.applicationRepository.update(id, updatePayload);
+
+    const updated = await this.applicationRepository
+      .createQueryBuilder('application')
+      .innerJoinAndSelect('application.job', 'job')
+      .innerJoinAndSelect('job.company', 'company')
+      .where('application.id = :id', { id })
+      .getOne();
+    if (!updated) throw new NotFoundException('Application not found after update');
+
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .select([
+        'user.id', 'user.firstName', 'user.lastName', 'user.email', 'user.phone', 'user.location', 'user.avatar',
+        'user.role', 'user.bio', 'user.experience', 'user.education', 'user.skills', 'user.technicalSkills',
+        'user.functionalSkills', 'user.currentJobTitle', 'user.portfolio', 'user.linkedin', 'user.github',
+        'user.resume', 'user.salaryExpectation', 'user.createdAt', 'user.updatedAt',
+      ])
+      .where('user.id = :userId', { userId: updated.userId })
+      .getOne();
+    updated.user = user || undefined;
+    return this.formatApplicationResponse(updated);
+  }
+
+  /**
+   * Full recruiter update for job portal application (Edit Candidate modal).
+   * Accepts snake_case payload; persists all provided fields. Used by PATCH /api/recruiter/applications/:id.
+   */
+  async updateRecruiterApplication(
+    id: number,
+    recruiterUserId: number,
+    payload: {
+      portal?: string | null;
+      assigned_date?: string | null;
+      call_date?: string | null;
+      call_status?: string | null;
+      interested_status?: string | null;
+      not_interested_remark?: string | null;
+      interview_scheduled?: boolean;
+      interview_date?: string | null;
+      turnup?: boolean | null;
+      interview_status?: string | null;
+      selection_status?: string | null;
+      joining_status?: string | null;
+      joining_date?: string | null;
+      expected_joining_date?: string | null;
+      backout_date?: string | null;
+      backout_reason?: string | null;
+      hiring_manager_feedback?: string | null;
+      followup_date?: string | null;
+      notes?: string | null;
+    },
+  ): Promise<ApplicationResponseDto> {
+    const application = await this.applicationRepository
+      .createQueryBuilder('application')
+      .innerJoinAndSelect('application.job', 'job')
+      .innerJoinAndSelect('job.company', 'company')
+      .where('application.id = :id', { id })
+      .getOne();
+
+    if (!application) throw new NotFoundException('Application not found');
+    if (!(await this.companiesService.canUserAccessCompany(recruiterUserId, application.job.companyId))) {
+      throw new ForbiddenException('You can only update applications for jobs you have access to');
+    }
+
+    const rawStatus = (payload.call_status ?? '').trim();
+    const callStatusNormalized = rawStatus === 'Connected' ? 'Connected' : rawStatus || null;
+    if (callStatusNormalized === 'Connected') {
+      const interested = payload.interested_status;
+      if (interested !== 'Yes' && interested !== 'No') {
+        throw new BadRequestException('Interested is required when Call status is Connected');
+      }
+    }
+    const interestedBool =
+      payload.interested_status === 'Yes' ? true : payload.interested_status === 'No' ? false : null;
+
+    const updatePayload: Partial<JobApplication> = {};
+    if (payload.portal !== undefined) updatePayload.portal = payload.portal ?? undefined;
+    if (payload.assigned_date !== undefined) updatePayload.assignedDate = payload.assigned_date ? new Date(payload.assigned_date) : null;
+    if (payload.call_date !== undefined) updatePayload.recruiterCallDate = payload.call_date ? new Date(payload.call_date) : null;
+    if (payload.call_status !== undefined) updatePayload.recruiterCallStatus = callStatusNormalized;
+    if (payload.interested_status !== undefined) updatePayload.recruiterInterested = interestedBool;
+    if (payload.not_interested_remark !== undefined) updatePayload.notInterestedRemark = payload.not_interested_remark ?? undefined;
+    if (payload.interview_scheduled !== undefined) updatePayload.interviewScheduled = payload.interview_scheduled;
+    if (payload.interview_date !== undefined) updatePayload.interviewDate = payload.interview_date ? new Date(payload.interview_date) : null;
+    if (payload.turnup !== undefined) updatePayload.turnup = payload.turnup;
+    if (payload.interview_status !== undefined) updatePayload.interviewStatus = payload.interview_status ?? undefined;
+    if (payload.selection_status !== undefined) updatePayload.selectionStatus = payload.selection_status ?? undefined;
+    if (payload.joining_status !== undefined) updatePayload.joiningStatus = payload.joining_status ?? undefined;
+    if (payload.joining_date !== undefined) updatePayload.joiningDate = payload.joining_date ? new Date(payload.joining_date) : null;
+    if (payload.expected_joining_date !== undefined) updatePayload.expectedJoiningDate = payload.expected_joining_date ? new Date(payload.expected_joining_date) : null;
+    if (payload.backout_date !== undefined) updatePayload.backoutDate = payload.backout_date ? new Date(payload.backout_date) : null;
+    if (payload.backout_reason !== undefined) updatePayload.backoutReason = payload.backout_reason ?? undefined;
+    if (payload.hiring_manager_feedback !== undefined) updatePayload.hiringManagerFeedback = payload.hiring_manager_feedback ?? undefined;
+    if (payload.followup_date !== undefined) updatePayload.followupDate = payload.followup_date ? new Date(payload.followup_date) : null;
+    if (payload.notes !== undefined) updatePayload.recruiterNotes = payload.notes ?? undefined;
+
+    if (application.status === ApplicationStatus.PENDING && (payload.call_date != null || payload.call_status != null)) {
+      updatePayload.status = ApplicationStatus.REVIEWING;
+    }
+    // Sync selection_status to job portal status so employer sees it
+    if (payload.selection_status === 'Selected') {
+      updatePayload.status = ApplicationStatus.SHORTLISTED;
+    } else if (payload.selection_status === 'Not Selected') {
+      updatePayload.status = ApplicationStatus.REJECTED;
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      await this.applicationRepository.update(id, updatePayload);
+    }
+
+    const updated = await this.applicationRepository
+      .createQueryBuilder('application')
+      .innerJoinAndSelect('application.job', 'job')
+      .innerJoinAndSelect('job.company', 'company')
+      .where('application.id = :id', { id })
+      .getOne();
+    if (!updated) throw new NotFoundException('Application not found after update');
+
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .select([
+        'user.id', 'user.firstName', 'user.lastName', 'user.email', 'user.phone', 'user.dateOfBirth', 'user.location', 'user.avatar',
+        'user.role', 'user.bio', 'user.experience', 'user.education', 'user.skills', 'user.technicalSkills',
+        'user.functionalSkills', 'user.currentJobTitle', 'user.portfolio', 'user.linkedin', 'user.github',
+        'user.resume', 'user.salaryExpectation', 'user.createdAt', 'user.updatedAt',
+      ])
+      .where('user.id = :userId', { userId: updated.userId })
+      .getOne();
+    updated.user = user || undefined;
+    return this.formatApplicationResponse(updated);
   }
 
   /**
@@ -488,6 +733,24 @@ export class ApplicationsService {
         appliedAt: application.createdAt.toISOString(),
         createdAt: application.createdAt.toISOString(),
         updatedAt: application.updatedAt.toISOString(),
+        recruiterCallDate: application.recruiterCallDate ? String(application.recruiterCallDate).split('T')[0] : null,
+        recruiterCallStatus: application.recruiterCallStatus ?? null,
+        recruiterInterested: application.recruiterInterested ?? null,
+        portal: application.portal ?? null,
+        assignedDate: application.assignedDate ? String(application.assignedDate).split('T')[0] : null,
+        recruiterNotes: application.recruiterNotes ?? null,
+        notInterestedRemark: application.notInterestedRemark ?? null,
+        interviewScheduled: application.interviewScheduled ?? null,
+        interviewDate: application.interviewDate ? String(application.interviewDate).split('T')[0] : null,
+        turnup: application.turnup ?? null,
+        interviewStatus: application.interviewStatus ?? null,
+        selectionStatus: application.selectionStatus ?? null,
+        joiningStatus: application.joiningStatus ?? null,
+        joiningDate: application.joiningDate ? String(application.joiningDate).split('T')[0] : null,
+        backoutDate: application.backoutDate ? String(application.backoutDate).split('T')[0] : null,
+        backoutReason: application.backoutReason ?? null,
+        hiringManagerFeedback: application.hiringManagerFeedback ?? null,
+        followupDate: application.followupDate ? String(application.followupDate).split('T')[0] : null,
         expectedSalary: undefined,
         user: {
           id: application.userId,
@@ -571,6 +834,24 @@ export class ApplicationsService {
       appliedAt: application.createdAt.toISOString(),
       createdAt: application.createdAt.toISOString(),
       updatedAt: application.updatedAt.toISOString(),
+      recruiterCallDate: application.recruiterCallDate ? String(application.recruiterCallDate).split('T')[0] : null,
+      recruiterCallStatus: application.recruiterCallStatus ?? null,
+      recruiterInterested: application.recruiterInterested ?? null,
+      portal: application.portal ?? null,
+      assignedDate: application.assignedDate ? String(application.assignedDate).split('T')[0] : null,
+      recruiterNotes: application.recruiterNotes ?? null,
+      notInterestedRemark: application.notInterestedRemark ?? null,
+      interviewScheduled: application.interviewScheduled ?? null,
+      interviewDate: application.interviewDate ? String(application.interviewDate).split('T')[0] : null,
+      turnup: application.turnup ?? null,
+      interviewStatus: application.interviewStatus ?? null,
+      selectionStatus: application.selectionStatus ?? null,
+      joiningStatus: application.joiningStatus ?? null,
+      joiningDate: application.joiningDate ? String(application.joiningDate).split('T')[0] : null,
+      backoutDate: application.backoutDate ? String(application.backoutDate).split('T')[0] : null,
+      backoutReason: application.backoutReason ?? null,
+      hiringManagerFeedback: application.hiringManagerFeedback ?? null,
+      followupDate: application.followupDate ? String(application.followupDate).split('T')[0] : null,
       expectedSalary: user.salaryExpectation || undefined,
       user: {
         id: user.id,

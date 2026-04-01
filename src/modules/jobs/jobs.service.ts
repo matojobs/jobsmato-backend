@@ -13,6 +13,7 @@ import { User, UserRole } from '../../entities/user.entity';
 import { JobView } from '../../entities/job-view.entity';
 import { JobStatistics } from '../../entities/job-statistics.entity';
 import { CreateJobDto, UpdateJobDto, JobSearchDto, JobResponseDto } from './dto/job.dto';
+import { CompaniesService } from '../companies/companies.service';
 
 @Injectable()
 export class JobsService {
@@ -25,17 +26,26 @@ export class JobsService {
     private jobViewRepository: Repository<JobView>,
     @InjectRepository(JobStatistics)
     private jobStatisticsRepository: Repository<JobStatistics>,
+    private companiesService: CompaniesService,
   ) {}
 
   async create(createJobDto: CreateJobDto, userId: number): Promise<JobResponseDto> {
-    // Get user's company without user relation to avoid schema mismatch
-    const company = await this.companyRepository
-      .createQueryBuilder('company')
-      .where('company.userId = :userId', { userId })
-      .getOne();
-
-    if (!company) {
+    const companyIds = await this.companiesService.getCompanyIdsForUser(userId);
+    if (!companyIds.length) {
       throw new ForbiddenException('You must have a company profile to post jobs');
+    }
+    let companyId: number;
+    if (createJobDto.companyId != null) {
+      if (!(await this.companiesService.canUserAccessCompany(userId, createJobDto.companyId))) {
+        throw new ForbiddenException('You do not have access to this company');
+      }
+      companyId = createJobDto.companyId;
+    } else {
+      companyId = companyIds[0];
+    }
+    const company = await this.companyRepository.findOne({ where: { id: companyId } });
+    if (!company) {
+      throw new ForbiddenException('Company not found');
     }
 
     // Check active job limit (max 10 active jobs per employer)
@@ -220,9 +230,8 @@ export class JobsService {
       throw new NotFoundException('Job not found');
     }
 
-    // Check if user owns this job
-    if (job.company.userId !== userId) {
-      throw new ForbiddenException('You can only update your own jobs');
+    if (!(await this.companiesService.canUserAccessCompany(userId, job.companyId))) {
+      throw new ForbiddenException('You can only update jobs for companies you have access to');
     }
 
     // Map 'featured' alias to 'isFeatured' if provided
@@ -297,11 +306,9 @@ export class JobsService {
       throw new NotFoundException('Job not found');
     }
 
-    // Check if user owns this job
-    if (job.company.userId !== userId) {
-      throw new ForbiddenException('You can only delete your own jobs');
+    if (!(await this.companiesService.canUserAccessCompany(userId, job.companyId))) {
+      throw new ForbiddenException('You can only delete jobs for companies you have access to');
     }
-
     await this.jobRepository.remove(job);
   }
 
@@ -350,12 +357,8 @@ export class JobsService {
     limit: number;
     totalPages: number;
   }> {
-    // Get user's company
-    const company = await this.companyRepository.findOne({
-      where: { userId },
-    });
-
-    if (!company) {
+    const companyIds = await this.companiesService.getCompanyIdsForUser(userId);
+    if (!companyIds.length) {
       return {
         jobs: [],
         total: 0,
@@ -386,7 +389,7 @@ export class JobsService {
     const queryBuilder = this.jobRepository
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.company', 'company')
-      .where('job.companyId = :companyId', { companyId: company.id });
+      .where('job.companyId IN (:...companyIds)', { companyIds });
 
     // Apply search filters
     if (search) {

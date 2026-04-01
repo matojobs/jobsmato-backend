@@ -54,7 +54,7 @@ export class AuthController {
   @Post('login')
   @UseGuards(LocalAuthGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login user' })
+  @ApiOperation({ summary: 'Login user (job portal: employer, recruiter, job seeker)' })
   @ApiResponse({
     status: 200,
     description: 'User successfully logged in',
@@ -63,6 +63,19 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(loginDto);
+  }
+
+  @Post('recruiter-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login for recruiter portal only (recruiter role required)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Recruiter logged in successfully',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Invalid credentials or not a recruiter' })
+  async recruiterLogin(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
+    return this.authService.recruiterLogin(loginDto);
   }
 
   @Post('refresh')
@@ -157,14 +170,22 @@ export class AuthController {
     description: 'Redirects to frontend with tokens',
   })
   async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
-    const user = req.user as User;
-    const authResponse = await this.authService.googleLogin(user);
-    
-    // Redirect to frontend with tokens as query parameters
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const redirectUrl = `${frontendUrl}/auth/callback?accessToken=${authResponse.accessToken}&refreshToken=${authResponse.refreshToken}&userId=${authResponse.userId}&email=${encodeURIComponent(authResponse.email)}&fullName=${encodeURIComponent(authResponse.fullName)}&role=${authResponse.role}&onboardingComplete=${authResponse.onboardingComplete}`;
-    
-    res.redirect(redirectUrl);
+    const user = req.user as User | undefined;
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+    if (!user) {
+      const errorUrl = `${frontendUrl}/auth/callback?error=google_auth_failed&message=${encodeURIComponent('Google sign-in could not complete. Please try again.')}`;
+      return res.redirect(errorUrl);
+    }
+
+    try {
+      const authResponse = await this.authService.googleLogin(user);
+      const redirectUrl = `${frontendUrl}/auth/callback?accessToken=${authResponse.accessToken}&refreshToken=${authResponse.refreshToken}&userId=${authResponse.userId}&email=${encodeURIComponent(authResponse.email)}&fullName=${encodeURIComponent(authResponse.fullName)}&role=${authResponse.role}&onboardingComplete=${authResponse.onboardingComplete}`;
+      return res.redirect(redirectUrl);
+    } catch {
+      const errorUrl = `${frontendUrl}/auth/callback?error=google_auth_failed&message=${encodeURIComponent('Something went wrong after sign-in. Please try again.')}`;
+      return res.redirect(errorUrl);
+    }
   }
 
   @Post('google/mobile')
