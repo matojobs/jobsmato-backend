@@ -22,6 +22,9 @@ export class AdminSourcingController {
   @ApiQuery({ name: 'joining_status', required: false, type: String })
   @ApiQuery({ name: 'interview_status', required: false, type: String })
   @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'date_field', required: false, enum: ['assigned_date', 'call_date', 'interview_date', 'joining_date', 'followup_date'] })
+  @ApiQuery({ name: 'start_date', required: false, type: String, description: 'ISO date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'end_date', required: false, type: String, description: 'ISO date (YYYY-MM-DD)' })
   async getSourcingApplications(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -32,6 +35,9 @@ export class AdminSourcingController {
     @Query('joining_status') joiningStatus?: string,
     @Query('interview_status') interviewStatus?: string,
     @Query('search') search?: string,
+    @Query('date_field') dateField?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
   ) {
     return this.adminSourcingService.getSourcingApplications({
       page: page ? Number(page) : undefined,
@@ -43,6 +49,9 @@ export class AdminSourcingController {
       joining_status: joiningStatus,
       interview_status: interviewStatus,
       search,
+      date_field: dateField,
+      start_date: startDate,
+      end_date: endDate,
     });
   }
 }

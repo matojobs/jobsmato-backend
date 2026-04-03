@@ -12,6 +12,9 @@ export interface AdminSourcingQuery {
   joining_status?: string;
   interview_status?: string;
   search?: string;
+  date_field?: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 @Injectable()
@@ -20,7 +23,7 @@ export class AdminSourcingService {
 
   async getSourcingApplications(query: AdminSourcingQuery) {
     const page = Math.max(1, Number(query.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(query.limit) || 25));
+    const limit = Math.min(10000, Math.max(1, Number(query.limit) || 25));
     const offset = (page - 1) * limit;
 
     let where = 'WHERE 1=1';
@@ -76,6 +79,25 @@ export class AdminSourcingService {
       )`;
       params.push(`%${query.search.trim()}%`);
       idx++;
+    }
+
+    const ALLOWED_DATE_FIELDS: Record<string, string> = {
+      assigned_date: 'a.assigned_date',
+      call_date: 'a.call_date',
+      interview_date: 'a.interview_date',
+      joining_date: 'a.joining_date',
+      followup_date: 'a.followup_date',
+    };
+    const dateCol = ALLOWED_DATE_FIELDS[query.date_field ?? 'assigned_date'] ?? 'a.assigned_date';
+
+    if (query.start_date) {
+      where += ` AND ${dateCol} >= $${idx++}`;
+      params.push(query.start_date);
+    }
+
+    if (query.end_date) {
+      where += ` AND ${dateCol} <= $${idx++}`;
+      params.push(query.end_date);
     }
 
     const countSql = `
