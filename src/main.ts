@@ -22,11 +22,13 @@ async function bootstrap() {
       const allowedOrigins = [
         'http://localhost:3000',
         'http://localhost:3001',
-        'http://localhost:3100', // Frontend development port
+        'http://localhost:3100', // HRMS dev
+        'http://localhost:3200', // Intern portal dev
         'https://jobsmato.com',
         'https://www.jobsmato.com',
         'https://jobsmato-frontend.vercel.app',
-        'https://hrms.jobsmato.com', // Recruiter portal (HRMS) – can call API on prod
+        'https://hrms.jobsmato.com',
+        'https://internship.jobsmato.com', // Intern portal prod
       ];
 
       if (allowedOrigins.includes(origin)) {
