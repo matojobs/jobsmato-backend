@@ -21,14 +21,6 @@ import { AdminModule } from './modules/admin/admin.module';
 import { FilesModule } from './modules/files/files.module';
 import { RecruiterModule } from './modules/recruiter/recruiter.module';
 import { CommonModule } from './common/common.module';
-import { BatchesModule } from './modules/batches/batches.module';
-import { InternshipsModule } from './modules/internships/internships.module';
-import { ActivityLogsModule } from './modules/activity-logs/activity-logs.module';
-import { CertificatesModule } from './modules/certificates/certificates.module';
-import { EvaluationsModule } from './modules/evaluations/evaluations.module';
-import { TrainingDataModule } from './modules/training-data/training-data.module';
-import { BatchTasksModule } from './modules/batch-tasks/batch-tasks.module';
-import { CouponsModule } from './modules/coupons/coupons.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 
 @Module({
@@ -75,15 +67,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
     AdminModule,
     FilesModule,
 
-    // Internship platform modules
-    BatchesModule,
-    InternshipsModule,
-    ActivityLogsModule,
-    CertificatesModule,
-    EvaluationsModule,
-    TrainingDataModule,
-    BatchTasksModule,
-    CouponsModule,
+    // Billing module
     InvoicesModule,
   ],
   controllers: [AppController],
