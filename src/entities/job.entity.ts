@@ -99,6 +99,19 @@ export class Job {
   @Column()
   location: string;
 
+  /**
+   * Per-city vacancies for this job, e.g. [{ city: 'Delhi', openings: 6 }].
+   * Optional — empty means the job has no structured vacancy targets
+   * (legacy behaviour). `filled` is NEVER stored here; it is derived live
+   * from joined activity logs. See docs/VACANCY_SOURCING_DESIGN.md.
+   */
+  @ApiProperty({
+    example: [{ city: 'Delhi', openings: 6 }, { city: 'Agra', openings: 5 }],
+    required: false,
+  })
+  @Column({ type: 'jsonb', nullable: true })
+  vacancies?: { city: string; openings: number }[];
+
   @ApiProperty({ example: JobType.FULL_TIME, enum: JobType })
   @Column({
     type: 'enum',

@@ -196,6 +196,16 @@ export class RecruiterController {
     return this.recruiterService.updateApplication(id, dto, recruiterId, user.id);
   }
 
+  @Patch('applications/:id/pipeline-stage')
+  @ApiOperation({ summary: 'Update pipeline stage for a sourcing application' })
+  async updatePipelineStage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('pipeline_stage') pipeline_stage: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.recruiterService.updatePipelineStage(id, pipeline_stage, user.id);
+  }
+
   @Delete('applications/:id')
   @ApiOperation({ summary: 'Delete application' })
   @ApiResponse({ status: 200, description: 'Application deleted' })

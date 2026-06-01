@@ -19,6 +19,7 @@ export enum UserRole {
   EMPLOYER = 'employer',
   ADMIN = 'admin',
   RECRUITER = 'recruiter',
+  INTERN = 'intern',
 }
 
 export enum UserStatus {

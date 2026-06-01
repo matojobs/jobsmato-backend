@@ -1302,6 +1302,28 @@ export class RecruiterService {
   /**
    * Delete application
    */
+  async updatePipelineStage(id: number, stage: string, userId: number): Promise<any> {
+    const valid = [
+      'lead','contacted','interested','screened','qualified','submitted',
+      'shortlisted','interview_r1','interview_r2','final_round','selected',
+      'offer_released','offer_accepted','joined','aging_45','aging_60','aging_90',
+      'billing_eligible','admin_approval','invoice_raised',
+      'payment_pending','payment_received','closed_won',
+    ];
+    if (!valid.includes(stage)) {
+      throw new BadRequestException(`Invalid pipeline stage: ${stage}`);
+    }
+    const result = await this.dataSource.query(
+      `UPDATE sourcing.applications
+       SET pipeline_stage = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING id, pipeline_stage`,
+      [stage, id],
+    );
+    if (!result.length) throw new NotFoundException(`Application ${id} not found`);
+    return result[0];
+  }
+
   async deleteApplication(id: number, recruiterId: number): Promise<void> {
     const result = await this.dataSource.query(
       `DELETE FROM sourcing.applications WHERE id = $1 AND recruiter_id = $2 RETURNING id`,

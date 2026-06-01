@@ -11,9 +11,22 @@ import {
   Min,
   Max,
   IsNotEmpty,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { JobType, JobStatus, Experience, Industry } from '../../../entities/job.entity';
+
+export class VacancyDto {
+  @ApiProperty({ example: 'Delhi', description: 'City name (must match candidate currentCity)' })
+  @IsString()
+  @IsNotEmpty()
+  city: string;
+
+  @ApiProperty({ example: 6, description: 'Number of openings to hire in this city' })
+  @IsInt()
+  @Min(0)
+  openings: number;
+}
 
 export class CreateJobDto {
   @ApiProperty({ example: 1, description: 'Company to post the job under. Required when user has multiple companies (e.g. recruiters).', required: false })
@@ -51,6 +64,17 @@ export class CreateJobDto {
   @IsString()
   @IsNotEmpty()
   location: string;
+
+  @ApiProperty({
+    type: [VacancyDto],
+    required: false,
+    description: 'Per-city vacancies, e.g. [{ city: "Delhi", openings: 6 }]',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VacancyDto)
+  vacancies?: VacancyDto[];
 
   @ApiProperty({ example: JobType.FULL_TIME, enum: JobType })
   @IsEnum(JobType)
@@ -138,6 +162,17 @@ export class UpdateJobDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @ApiProperty({
+    type: [VacancyDto],
+    required: false,
+    description: 'Per-city vacancies, e.g. [{ city: "Delhi", openings: 6 }]',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VacancyDto)
+  vacancies?: VacancyDto[];
 
   @ApiProperty({ example: JobType.FULL_TIME, enum: JobType, required: false })
   @IsOptional()
@@ -325,6 +360,9 @@ export class JobResponseDto {
 
   @ApiProperty({ example: 'San Francisco, CA' })
   location: string;
+
+  @ApiProperty({ type: [VacancyDto], required: false })
+  vacancies?: VacancyDto[];
 
   @ApiProperty({ example: JobType.FULL_TIME, enum: JobType })
   type: JobType;

@@ -551,6 +551,7 @@ export class JobsService {
       benefits: job.benefits,
       salary: job.salary,
       location: job.location,
+      vacancies: job.vacancies ?? [],
       type: job.type,
       category: job.category,
       industry: job.industry,

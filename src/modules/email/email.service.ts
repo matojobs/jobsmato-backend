@@ -109,6 +109,10 @@ export class EmailService {
     });
   }
 
+  async sendMail(mailOptions: { to: string; subject: string; html: string }): Promise<void> {
+    return this.sendEmail(mailOptions);
+  }
+
   private async sendEmail(mailOptions: any): Promise<void> {
     if (!this.transporter) {
       this.logger.log('Email service not configured. Logging email instead:');
