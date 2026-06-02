@@ -28,7 +28,8 @@ async function bootstrap() {
         'https://www.jobsmato.com',
         'https://jobsmato-frontend.vercel.app',
         'https://hrms.jobsmato.com',
-        'https://internship.jobsmato.com', // Intern portal prod
+        'https://internship.jobsmato.com', // Intern portal prod (old subdomain)
+        'https://intern.jobsmato.com',     // Intern portal prod (live subdomain)
       ];
 
       if (allowedOrigins.includes(origin)) {
