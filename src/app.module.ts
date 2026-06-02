@@ -23,6 +23,8 @@ import { RecruiterModule } from './modules/recruiter/recruiter.module';
 import { CommonModule } from './common/common.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { BatchesModule } from './modules/batches/batches.module';
+import { InternshipsModule } from './modules/internships/internships.module';
 
 @Module({
   imports: [
@@ -71,6 +73,10 @@ import { PaymentsModule } from './modules/payments/payments.module';
     // Billing & payments
     InvoicesModule,
     PaymentsModule,
+
+    // Internship platform
+    BatchesModule,
+    InternshipsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
