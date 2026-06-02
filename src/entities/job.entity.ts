@@ -213,6 +213,10 @@ export class Job {
   @Column({ nullable: true })
   hrWhatsapp: string;
 
+  // JD file (stored locally on server)
+  @Column({ nullable: true })
+  jdPath: string;
+
   // Relations
   @ApiProperty({ example: 1 })
   @Column()

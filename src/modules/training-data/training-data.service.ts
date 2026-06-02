@@ -85,6 +85,8 @@ export class TrainingDataService {
     if (companies?.length) qb.andWhere('c.currentCompany IN (:...companies)', { companies });
     if (profiles?.length) qb.andWhere('c.currentDesignation IN (:...profiles)', { profiles });
     if (cities?.length) qb.andWhere('c.currentCity IN (:...cities)', { cities });
+    // Exclude candidates already locked (interested/submitted by another intern)
+    qb.andWhere('c."lockedByEnrollmentId" IS NULL');
     const [candidates, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
     return { candidates, total, page, totalPages: Math.ceil(total / limit) };
   }

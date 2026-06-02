@@ -277,6 +277,11 @@ export class AdminJobsService {
     await this.jobRepository.save(job);
     return { success: true, id, vacancies };
   }
+
+  async saveJdPath(id: number, jdPath: string) {
+    await this.jobRepository.update(id, { jdPath } as any);
+    return { success: true };
+  }
 }
 
 

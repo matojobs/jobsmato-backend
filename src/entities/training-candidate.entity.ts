@@ -74,6 +74,13 @@ export class TrainingCandidate {
   @Column({ nullable: true })
   gender: string;
 
+  // Candidate lock — set when any intern marks interested; prevents reassignment
+  @Column({ nullable: true })
+  lockedByEnrollmentId: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lockedAt: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

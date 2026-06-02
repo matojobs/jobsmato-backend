@@ -10,7 +10,16 @@ import {
   Query,
   UseGuards,
   ParseIntPipe,
+  UploadedFile,
+  UseInterceptors,
+  Res,
+  NotFoundException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as path from 'path';
+import * as fs from 'fs';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -253,6 +262,58 @@ export class AdminJobsController {
     @CurrentUser() admin?: User,
   ) {
     return this.adminJobsService.bulkJobAction(body.action, body.jobIds, body.adminNotes, admin?.id);
+  }
+
+  // ── JD Upload / Download ──────────────────────────────────────────────────
+
+  @Post(':id/jd')
+  @AdminPermissions(AdminPermission.EDIT_JOBS)
+  @UseGuards(AdminPermissionGuard)
+  @ApiOperation({ summary: 'Upload JD (PDF/DOC) for a job — stored locally on server' })
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(process.cwd(), 'uploads', 'jd');
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `job-${req.params.id}-jd${ext}`);
+      },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+    fileFilter: (req, file, cb) => {
+      const allowed = ['.pdf', '.doc', '.docx'];
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, allowed.includes(ext));
+    },
+  }))
+  async uploadJd(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new NotFoundException('No file uploaded or invalid format (PDF/DOC/DOCX only)');
+    const job = await this.adminJobsService.getJob(id);
+    // Delete old JD file if exists
+    if ((job as any).jdPath && fs.existsSync((job as any).jdPath)) {
+      fs.unlinkSync((job as any).jdPath);
+    }
+    await this.adminJobsService.saveJdPath(id, file.path);
+    return { success: true, filename: file.filename };
+  }
+
+  @Get(':id/jd')
+  @ApiOperation({ summary: 'Download JD for a job (accessible to all authenticated users)' })
+  async downloadJd(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: any,
+  ) {
+    const job = await this.adminJobsService.getJob(id);
+    if (!(job as any).jdPath || !fs.existsSync((job as any).jdPath)) {
+      throw new NotFoundException('JD not uploaded for this job');
+    }
+    res.download((job as any).jdPath, path.basename((job as any).jdPath));
   }
 }
 

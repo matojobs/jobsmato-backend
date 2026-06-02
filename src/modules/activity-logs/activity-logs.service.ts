@@ -246,13 +246,47 @@ export class ActivityLogsService {
 
     if (!existing) {
       const newLog = this.logRepo.create({ ...data, userId, weekNumber });
-      return this.logRepo.save(newLog);
+      const saved = await this.logRepo.save(newLog);
+      await this.handleCandidateLock(parseInt(data.candidateId), data.enrollmentId, data.pipelineStage);
+      return saved;
     }
 
     // Merge — never overwrite with undefined/null
     Object.keys(data).forEach(k => {
       if (data[k] !== undefined && data[k] !== null) (existing as any)[k] = data[k];
     });
-    return this.logRepo.save(existing);
+    const saved = await this.logRepo.save(existing);
+    await this.handleCandidateLock(parseInt(data.candidateId), data.enrollmentId, data.pipelineStage);
+    return saved;
+  }
+
+  /**
+   * Lock candidate when interested (submitted+), unlock when dropped/rejected/failed.
+   * Locked candidates are excluded from admin task assignment queries.
+   */
+  private async handleCandidateLock(candidateId: number, enrollmentId: string, stage: string) {
+    if (!candidateId || !stage) return;
+
+    const LOCK_STAGES = [
+      'interested', 'screened', 'qualified', 'submitted', 'shortlisted',
+      'interview_r1', 'interview_r2', 'final_round', 'selected',
+      'offer_released', 'offer_accepted', 'joined',
+    ];
+    const UNLOCK_STAGES = [
+      'not_interested', 'profile_mismatch', 'client_rejected', 'interview_failed',
+      'offer_declined', 'talent_pool', 'no_response',
+    ];
+
+    if (LOCK_STAGES.includes(stage)) {
+      await this.candidateRepo.update(candidateId, {
+        lockedByEnrollmentId: enrollmentId,
+        lockedAt: new Date(),
+      } as any);
+    } else if (UNLOCK_STAGES.includes(stage)) {
+      await this.candidateRepo.update(candidateId, {
+        lockedByEnrollmentId: null as any,
+        lockedAt: null as any,
+      });
+    }
   }
 }

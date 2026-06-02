@@ -10,8 +10,12 @@ import {
   UseGuards,
   ParseIntPipe,
   Req,
+  Res,
   NotFoundException,
 } from '@nestjs/common';
+import { Response } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   ApiTags,
   ApiOperation,
@@ -350,5 +354,20 @@ export class JobsController {
     @CurrentUser() user?: User,
   ) {
     return this.jobsService.trackJobView(id, req, user);
+  }
+
+  @Get(':id/jd')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Download JD for a job (all authenticated users)' })
+  async downloadJd(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: any,
+  ) {
+    const job = await this.jobsService.findOne(id);
+    const jdPath = (job as any).jdPath;
+    if (!jdPath || !fs.existsSync(jdPath)) {
+      throw new NotFoundException('JD not available for this job');
+    }
+    res.download(jdPath, path.basename(jdPath));
   }
 }
