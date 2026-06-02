@@ -22,6 +22,7 @@ import { FilesModule } from './modules/files/files.module';
 import { RecruiterModule } from './modules/recruiter/recruiter.module';
 import { CommonModule } from './common/common.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -67,8 +68,9 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
     AdminModule,
     FilesModule,
 
-    // Billing module
+    // Billing & payments
     InvoicesModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
