@@ -137,6 +137,12 @@ export class AuthController {
     return this.authService.changePassword(user.id, changePasswordDto);
   }
 
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMe(@CurrentUser() user: User): Promise<User> {
+    return user;
+  }
+
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
