@@ -25,6 +25,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { BatchesModule } from './modules/batches/batches.module';
 import { InternshipsModule } from './modules/internships/internships.module';
+import { OperationsModule } from './modules/operations/operations.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { InternshipsModule } from './modules/internships/internships.module';
     // Internship platform
     BatchesModule,
     InternshipsModule,
+    OperationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -142,6 +142,31 @@ export class InternActivityLog {
   @Column({ default: 1 })
   weekNumber: number;
 
+  // ── CV & Operations fields ────────────────────────────────────────────────
+  @Column({ nullable: true })
+  cvUrl: string;
+
+  @Column({ type: 'date', nullable: true })
+  interviewDate: string;
+
+  @Column({ nullable: true })
+  interviewTime: string;
+
+  @Column({ nullable: true })
+  clientName: string;
+
+  @Column({ nullable: true })
+  interviewMode: string;   // Online / Offline / Telephonic
+
+  @Column({ nullable: true })
+  interviewLocation: string;
+
+  @Column({ type: 'text', nullable: true })
+  clientFeedback: string;
+
+  @Column({ type: 'text', nullable: true })
+  opsNotes: string;
+
   @CreateDateColumn()
   createdAt: Date;
 
