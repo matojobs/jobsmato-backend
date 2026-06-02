@@ -26,6 +26,12 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { BatchesModule } from './modules/batches/batches.module';
 import { InternshipsModule } from './modules/internships/internships.module';
 import { OperationsModule } from './modules/operations/operations.module';
+import { BatchTasksModule } from './modules/batch-tasks/batch-tasks.module';
+import { TrainingDataModule } from './modules/training-data/training-data.module';
+import { ActivityLogsModule } from './modules/activity-logs/activity-logs.module';
+import { CouponsModule } from './modules/coupons/coupons.module';
+import { EvaluationsModule } from './modules/evaluations/evaluations.module';
+import { CertificatesModule } from './modules/certificates/certificates.module';
 
 @Module({
   imports: [
@@ -79,6 +85,12 @@ import { OperationsModule } from './modules/operations/operations.module';
     BatchesModule,
     InternshipsModule,
     OperationsModule,
+    BatchTasksModule,
+    TrainingDataModule,
+    ActivityLogsModule,
+    CouponsModule,
+    EvaluationsModule,
+    CertificatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
