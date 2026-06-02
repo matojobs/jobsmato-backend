@@ -269,6 +269,14 @@ export class AdminJobsService {
       errors,
     };
   }
+
+  async updateVacancies(id: number, vacancies: { city: string; openings: number }[]) {
+    const job = await this.jobRepository.findOne({ where: { id } });
+    if (!job) throw new Error(`Job ${id} not found`);
+    job.vacancies = vacancies;
+    await this.jobRepository.save(job);
+    return { success: true, id, vacancies };
+  }
 }
 
 

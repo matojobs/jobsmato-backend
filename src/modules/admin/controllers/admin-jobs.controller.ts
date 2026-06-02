@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Put,
+  Patch,
   Post,
   Delete,
   Body,
@@ -229,6 +230,17 @@ export class AdminJobsController {
     @CurrentUser() admin?: User,
   ) {
     return this.adminJobsService.updateJobStatus(id, body.status, body.adminNotes, admin?.id);
+  }
+
+  @Patch(':id/vacancies')
+  @AdminPermissions(AdminPermission.EDIT_JOBS)
+  @UseGuards(AdminPermissionGuard)
+  @ApiOperation({ summary: 'Update per-city vacancies for a job' })
+  async updateVacancies(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { vacancies: { city: string; openings: number }[] },
+  ) {
+    return this.adminJobsService.updateVacancies(id, body.vacancies);
   }
 
   @Post('bulk-action')
