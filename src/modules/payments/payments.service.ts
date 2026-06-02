@@ -38,16 +38,24 @@ export class PaymentsService {
     const receipt = `rcpt_${userId ?? 'anon'}_${Date.now()}`;
 
     try {
-      const order = await (this.razorpay.orders.create as any)({
-        amount: amountPaise,
-        currency: 'INR',
-        receipt,
-        notes: {
-          purpose: dto.purpose,
-          userId: String(userId ?? ''),
-          couponCode: dto.couponCode ?? '',
-          couponId: dto.couponId ?? '',
-        },
+      const order = await new Promise<any>((resolve, reject) => {
+        (this.razorpay.orders.create as any)(
+          {
+            amount: amountPaise,
+            currency: 'INR',
+            receipt,
+            notes: {
+              purpose: dto.purpose,
+              userId: String(userId ?? ''),
+              couponCode: dto.couponCode ?? '',
+              couponId: dto.couponId ?? '',
+            },
+          },
+          (err: any, order: any) => {
+            if (err) reject(err);
+            else resolve(order);
+          },
+        );
       });
 
       this.logger.log(`Razorpay order created: ${order.id} for ₹${dto.amount}`);
