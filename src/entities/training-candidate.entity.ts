@@ -81,6 +81,65 @@ export class TrainingCandidate {
   @Column({ type: 'timestamp', nullable: true })
   lockedAt: Date;
 
+  // ── Historical sourcing context (from old HRMS call-log import) ───────────
+  // Preserves "who was this person called for, by whom, and what happened"
+  @Column({ nullable: true })
+  sourcedForRole: string;          // Job Role they were sourced for
+
+  @Column({ nullable: true })
+  sourcedForCompany: string;       // Client company (Company Acc)
+
+  @Column({ nullable: true })
+  portal: string;                  // Where the lead came from (Naukri, WorkIndia…)
+
+  @Column({ nullable: true })
+  lastRecruiter: string;           // Who called them last
+
+  @Column({ type: 'date', nullable: true })
+  lastCallDate: string;
+
+  @Column({ nullable: true })
+  lastCallStatus: string;          // Connected / RNR / Busy / …
+
+  @Column({ nullable: true })
+  lastInterested: string;          // Interested / Not Interested / …
+
+  @Column({ type: 'text', nullable: true })
+  lastNotInterestedRemark: string;
+
+  @Column({ nullable: true })
+  lastInterviewStatus: string;
+
+  @Column({ nullable: true })
+  lastSelectionStatus: string;
+
+  @Column({ nullable: true })
+  lastJoiningStatus: string;
+
+  // ── Assignment / workflow (Option B parallel pool) ───────────────────────
+  @Index()
+  @Column({ nullable: true })
+  assignedToEnrollmentId: string;  // intern this candidate is assigned to
+
+  @Column({ type: 'timestamp', nullable: true })
+  assignedAt: Date;
+
+  @Column({ type: 'int', nullable: true })
+  assignedByUserId: number;        // admin who assigned
+
+  @Column({ type: 'timestamp', nullable: true })
+  resetAt: Date;                   // when auto-reset returned it to the pool
+
+  @Column({ type: 'int', nullable: true })
+  convertedUserId: number;         // jobsmato.com user created on signup
+
+  @Column({ type: 'int', nullable: true })
+  convertedByInternId: number;     // intern credited for the conversion
+
+  @Index()
+  @Column({ nullable: true })
+  batchTag: string;                // import slice tag, e.g. "import_2026_06"
+
   @CreateDateColumn()
   createdAt: Date;
 
