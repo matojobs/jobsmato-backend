@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { InternActivityLog } from '../../entities/intern-activity-log.entity';
 import { InternshipEnrollment } from '../../entities/internship-enrollment.entity';
 import { TrainingCandidate } from '../../entities/training-candidate.entity';
+import { CandidateSignupToken } from '../../entities/candidate-signup-token.entity';
 
 @Injectable()
 export class ActivityLogsService {
@@ -14,6 +15,8 @@ export class ActivityLogsService {
     private enrollmentRepo: Repository<InternshipEnrollment>,
     @InjectRepository(TrainingCandidate)
     private candidateRepo: Repository<TrainingCandidate>,
+    @InjectRepository(CandidateSignupToken)
+    private tokenRepo: Repository<CandidateSignupToken>,
   ) {}
 
   private async verifyOwnership(enrollmentId: string, userId: number) {
@@ -33,7 +36,14 @@ export class ActivityLogsService {
     const enrollment = await this.verifyOwnership(data.enrollmentId, userId);
     const weekNumber = this.getWeekNumber(enrollment);
     const log = this.logRepo.create({ ...data, userId, weekNumber });
-    return this.logRepo.save(log);
+    const saved = await this.logRepo.save(log);
+
+    // Persist LinkedIn URL back to the training_candidate record if provided
+    if (data.candidateId && data.linkedIn) {
+      await this.candidateRepo.update(data.candidateId, { linkedIn: data.linkedIn });
+    }
+
+    return saved;
   }
 
   async getTodayStats(enrollmentId: string, userId: number) {
@@ -73,6 +83,43 @@ export class ActivityLogsService {
       take,
     });
     return { logs, total, page, totalPages: Math.ceil(total / take) };
+  }
+
+  /** Follow-ups: logs with followupDate set, sorted by date ASC */
+  async getFollowups(
+    enrollmentId: string,
+    userId: number,
+    filter: 'today' | 'overdue' | 'upcoming' | 'all' = 'all',
+  ) {
+    await this.verifyOwnership(enrollmentId, userId);
+    const today = new Date().toISOString().split('T')[0];
+
+    const qb = this.logRepo
+      .createQueryBuilder('log')
+      .leftJoinAndSelect('log.candidate', 'candidate')
+      .where('log.enrollmentId = :enrollmentId', { enrollmentId })
+      .andWhere('log.followupDate IS NOT NULL')
+      // Exclude candidates already moved past follow_up stage
+      .andWhere("log.pipelineStage IN ('follow_up','no_response','contacted')")
+      .orderBy('log.followupDate', 'ASC')
+      .addOrderBy('log.followupTime', 'ASC');
+
+    if (filter === 'today')    qb.andWhere('log.followupDate = :today', { today });
+    if (filter === 'overdue')  qb.andWhere('log.followupDate < :today', { today });
+    if (filter === 'upcoming') qb.andWhere('log.followupDate > :today', { today });
+
+    const logs = await qb.getMany();
+    return logs.map(log => ({
+      id: log.id,
+      candidateId: log.candidateId,
+      candidate: log.candidate,
+      followupDate: log.followupDate,
+      followupTime: (log as any).followupTime,
+      pipelineStage: log.pipelineStage,
+      notes: log.notes,
+      isOverdue: log.followupDate < today,
+      isToday: log.followupDate === today,
+    }));
   }
 
   async getCandidateLog(enrollmentId: string, userId: number, candidateId: string) {
@@ -258,6 +305,163 @@ export class ActivityLogsService {
     const saved = await this.logRepo.save(existing);
     await this.handleCandidateLock(parseInt(data.candidateId), data.enrollmentId, data.pipelineStage);
     return saved;
+  }
+
+  // ── Admin: cross-intern leaderboard ──────────────────────────────────────────
+
+  async getAdminLeaderboard(period: string) {
+    let dateFilter = '';
+    const now = new Date();
+    if (period === 'today') {
+      dateFilter = `AND l."callDate" = '${now.toISOString().split('T')[0]}'`;
+    } else if (period === 'week') {
+      const d = new Date(now); d.setDate(d.getDate() - 7);
+      dateFilter = `AND l."callDate" >= '${d.toISOString().split('T')[0]}'`;
+    } else if (period === 'month') {
+      const d = new Date(now); d.setDate(d.getDate() - 30);
+      dateFilter = `AND l."callDate" >= '${d.toISOString().split('T')[0]}'`;
+    }
+
+    const sql = `
+      SELECT
+        e.id                                                              AS "enrollmentId",
+        u."firstName",
+        u."lastName",
+        u.email,
+        UPPER(b.domain::text) || '-' || UPPER(b."batchType"::text)       AS "batchCode",
+        e.domain,
+        e.status,
+        COUNT(l.id)                                                       AS "callsMade",
+        COUNT(l.id) FILTER (WHERE l."callStatus" = 'connected')          AS "connected",
+        COUNT(l.id) FILTER (WHERE l."interestStatus" = 'yes')            AS "interested",
+        COUNT(l.id) FILTER (WHERE l."pipelineStage" IN (
+          'submitted','shortlisted','interview_r1','interview_r2',
+          'final_round','selected','offer_released','offer_accepted','joined'
+        ))                                                                AS "submitted",
+        COUNT(l.id) FILTER (WHERE l."pipelineStage" IN (
+          'interview_r1','interview_r2','final_round',
+          'selected','offer_released','offer_accepted','joined'
+        ))                                                                AS "interviews",
+        COUNT(l.id) FILTER (WHERE l."pipelineStage" IN (
+          'selected','offer_released','offer_accepted','joined'
+        ))                                                                AS "selected",
+        COUNT(l.id) FILTER (
+          WHERE l."joiningStatus" = 'joined' OR l."pipelineStage" = 'joined'
+        )                                                                 AS "joined",
+        COALESCE(MAX(sig.signups), 0)                                    AS "signups"
+      FROM internship_enrollments e
+      JOIN users u ON e."userId" = u.id
+      LEFT JOIN batches b ON e."batchId" = b.id
+      LEFT JOIN intern_activity_logs l ON l."enrollmentId" = e.id ${dateFilter}
+      LEFT JOIN (
+        SELECT enrollment_id::text, COUNT(*) AS signups
+        FROM candidate_signup_tokens
+        WHERE used_at IS NOT NULL
+        GROUP BY enrollment_id
+      ) sig ON sig.enrollment_id = e.id::text
+      WHERE e.status = 'active'
+      GROUP BY e.id, u."firstName", u."lastName", u.email, b.domain, b."batchType", e.domain, e.status
+      ORDER BY "joined" DESC, "interviews" DESC, "signups" DESC, "callsMade" DESC
+    `;
+
+    const rows: any[] = await this.logRepo.manager.query(sql);
+
+    return rows.map((r, idx) => ({
+      rank: idx + 1,
+      enrollmentId: r.enrollmentId,
+      name: `${r.firstName || ''} ${r.lastName || ''}`.trim(),
+      email: r.email,
+      batchCode: r.batchCode || '—',
+      domain: r.domain,
+      funnel: {
+        callsMade:  parseInt(r.callsMade)  || 0,
+        connected:  parseInt(r.connected)  || 0,
+        interested: parseInt(r.interested) || 0,
+        submitted:  parseInt(r.submitted)  || 0,
+        interviews: parseInt(r.interviews) || 0,
+        selected:   parseInt(r.selected)   || 0,
+        joined:     parseInt(r.joined)     || 0,
+      },
+      signups:         parseInt(r.signups) || 0,
+      billingEstimate: (parseInt(r.joined) || 0) * 2000,
+    }));
+  }
+
+  // ── Intern performance summary (all-time or filtered by period) ─────────────
+
+  async getPerformanceSummary(enrollmentId: string, userId: number, period: string) {
+    await this.verifyOwnership(enrollmentId, userId);
+
+    // Build date filter based on period
+    let fromDate: string | null = null;
+    const now = new Date();
+    if (period === 'today') {
+      fromDate = now.toISOString().split('T')[0];
+    } else if (period === 'week') {
+      const d = new Date(now); d.setDate(d.getDate() - 7);
+      fromDate = d.toISOString().split('T')[0];
+    } else if (period === 'month') {
+      const d = new Date(now); d.setDate(d.getDate() - 30);
+      fromDate = d.toISOString().split('T')[0];
+    }
+
+    let qb = this.logRepo.createQueryBuilder('l')
+      .where('l.enrollmentId = :enrollmentId', { enrollmentId });
+    if (fromDate) qb = qb.andWhere('l.callDate >= :fromDate', { fromDate });
+    const logs = await qb.getMany();
+
+    // ── Funnel counts ──────────────────────────────────────────────────────
+    const INTERVIEW_STAGES = ['interview_r1', 'interview_r2', 'final_round', 'selected', 'offer_released', 'offer_accepted', 'joined'];
+    const SUBMITTED_STAGES = ['submitted', 'shortlisted', ...INTERVIEW_STAGES];
+    const SELECTED_STAGES  = ['selected', 'offer_released', 'offer_accepted', 'joined'];
+
+    const callsMade = logs.length;
+    const connected = logs.filter(l => l.callStatus === 'connected').length;
+    const interested = logs.filter(l => l.interestStatus === 'yes').length;
+    const submitted = logs.filter(l => SUBMITTED_STAGES.includes(l.pipelineStage as string)).length;
+    const interviews = logs.filter(l => INTERVIEW_STAGES.includes(l.pipelineStage as string)).length;
+    const selected  = logs.filter(l => SELECTED_STAGES.includes(l.pipelineStage as string)).length;
+    const joined    = logs.filter(l => l.joiningStatus === 'joined' || l.pipelineStage === 'joined').length;
+
+    // ── Signups: count converted tokens for this enrollment ───────────────
+    const signups = await this.tokenRepo.count({
+      where: { enrollmentId, usedAt: undefined as any },
+    });
+    // refine — count only those where usedAt IS NOT NULL
+    const signupsCount = await this.tokenRepo
+      .createQueryBuilder('t')
+      .where('t.enrollmentId = :enrollmentId', { enrollmentId })
+      .andWhere('t.usedAt IS NOT NULL')
+      .getCount();
+
+    // ── Weekly breakdown (all-time, last 12 weeks) ────────────────────────
+    const allLogs = await this.logRepo.find({
+      where: { enrollmentId },
+      order: { weekNumber: 'ASC' },
+    });
+    const weekMap: Record<number, { week: number; calls: number; connected: number; interested: number; interviews: number; joined: number }> = {};
+    for (const l of allLogs) {
+      const w = l.weekNumber;
+      if (!weekMap[w]) weekMap[w] = { week: w, calls: 0, connected: 0, interested: 0, interviews: 0, joined: 0 };
+      weekMap[w].calls++;
+      if (l.callStatus === 'connected') weekMap[w].connected++;
+      if (l.interestStatus === 'yes') weekMap[w].interested++;
+      if (INTERVIEW_STAGES.includes(l.pipelineStage as string)) weekMap[w].interviews++;
+      if (l.joiningStatus === 'joined' || l.pipelineStage === 'joined') weekMap[w].joined++;
+    }
+    const weeklyBreakdown = Object.values(weekMap).slice(-12);
+
+    // ── Billing estimate: ₹2,000 per joining ─────────────────────────────
+    const BILLING_RATE_PER_JOINING = 2000;
+    const billingEstimate = joined * BILLING_RATE_PER_JOINING;
+
+    return {
+      period,
+      funnel: { callsMade, connected, interested, submitted, interviews, selected, joined },
+      signups: signupsCount,
+      billingEstimate,
+      weeklyBreakdown,
+    };
   }
 
   /**

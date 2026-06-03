@@ -44,6 +44,27 @@ export class ActivityLogsController {
     return this.activityLogsService.getMyLogs(enrollmentId, user.id, +page);
   }
 
+  @Get('my/performance')
+  getPerformanceSummary(
+    @CurrentUser() user: any,
+    @Query('enrollmentId') enrollmentId: string,
+    @Query('period') period = 'all',
+  ) {
+    return this.activityLogsService.getPerformanceSummary(enrollmentId, user.id, period);
+  }
+
+  /** Intern: follow-ups scheduled via "Call Back Later" */
+  @Get('my/followups')
+  getFollowups(
+    @CurrentUser() user: any,
+    @Query('enrollmentId') enrollmentId: string,
+    @Query('filter') filter: string = 'all',
+  ) {
+    return this.activityLogsService.getFollowups(
+      enrollmentId, user.id, filter as any,
+    );
+  }
+
   @Get('my/candidate/:candidateId')
   getCandidateLog(
     @CurrentUser() user: any,
@@ -67,6 +88,14 @@ export class ActivityLogsController {
   @Post('upsert')
   upsertLog(@CurrentUser() user: any, @Body() body: any) {
     return this.activityLogsService.upsertLog(user.id, body);
+  }
+
+  /** Admin: Cross-intern performance leaderboard */
+  @Get('admin/leaderboard')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  getAdminLeaderboard(@Query('period') period = 'all') {
+    return this.activityLogsService.getAdminLeaderboard(period);
   }
 
   /**

@@ -18,6 +18,9 @@ export class TrainingCandidate {
   email: string;
 
   @Column({ nullable: true })
+  linkedIn: string;
+
+  @Column({ nullable: true })
   currentCity: string;
 
   @Column({ nullable: true })
@@ -133,8 +136,8 @@ export class TrainingCandidate {
   @Column({ type: 'int', nullable: true })
   convertedUserId: number;         // jobsmato.com user created on signup
 
-  @Column({ type: 'int', nullable: true })
-  convertedByInternId: number;     // intern credited for the conversion
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  convertedByInternId: string;     // enrollmentId (UUID) of intern credited for the conversion
 
   @Index()
   @Column({ nullable: true })

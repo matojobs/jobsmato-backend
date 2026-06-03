@@ -25,13 +25,14 @@ export class BatchTasksService {
     private jobRepo: Repository<Job>,
   ) {}
 
-  /** Jobs that have at least one city vacancy — for the task wizard picker */
+  /** All active jobs — for the task wizard job picker.
+   *  Jobs with a vacancies array show real city openings in Step 4.
+   *  Jobs without vacancies fall back to the candidate-data city list. */
   async getJobsWithVacancies() {
     const jobs = await this.jobRepo
       .createQueryBuilder('job')
       .leftJoinAndSelect('job.company', 'company')
-      .where('job.vacancies IS NOT NULL')
-      .andWhere(`jsonb_array_length(job.vacancies) > 0`)
+      .where("job.status IN ('active', 'draft')")
       .orderBy('job.createdAt', 'DESC')
       .getMany();
 

@@ -100,8 +100,21 @@ export class InternActivityLog {
   @Column({ type: 'date', nullable: true })
   followupDate: string;
 
+  @Column({ nullable: true })
+  followupTime: string;   // e.g. "14:30" (HH:MM from time picker)
+
   @Column({ type: 'text', nullable: true })
   notes: string;
+
+  // ── Call data collected during the conversation ─────────────────────────
+  @Column({ nullable: true })
+  experience: string;      // work experience (text, e.g. "2 years")
+
+  @Column({ nullable: true })
+  currentSalary: string;   // current CTC if employed
+
+  @Column({ nullable: true })
+  workingStatus: string;   // 'working' | 'fresher'
 
   // ── Pipeline stage (single source of truth for funnel position) ──
   @Column({ type: 'varchar', nullable: true, default: PipelineStage.LEAD })
