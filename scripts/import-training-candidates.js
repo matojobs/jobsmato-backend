@@ -37,6 +37,12 @@ const S = (v) => {
   const s = String(v).trim();
   return s === '' ? null : s;
 };
+// Defensive date — accepts ISO yyyy-mm-dd only; returns null for garbage
+const D = (v) => {
+  const s = S(v);
+  if (!s) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+};
 
 (async () => {
   console.log(`Reading: ${FILE}`);
@@ -62,7 +68,7 @@ const S = (v) => {
   const toParams = (r) => [
     S(r.name), S(r.phone), S(r.email), S(r.city), S(r.qualification), S(r.experience), S(r.currentCTC),
     S(r.sourcedForRole), S(r.sourcedForCompany), S(r.portal), S(r.lastRecruiter),
-    S(r.lastCallDate), S(r.lastCallStatus), S(r.lastInterested), S(r.notInterestedRemark),
+    D(r.lastCallDate), S(r.lastCallStatus), S(r.lastInterested), S(r.notInterestedRemark),
     S(r.lastInterviewStatus), S(r.lastSelectionStatus), S(r.lastJoiningStatus),
     S(r.status) || 'unassigned', `${S(r.sourceFile) || ''}:${S(r.sourceSheet) || ''}`, BATCH_TAG,
   ];
