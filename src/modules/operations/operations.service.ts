@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { InternActivityLog, PipelineStage } from '../../entities/intern-activity-log.entity';
 import { TrainingCandidate } from '../../entities/training-candidate.entity';
+import { Company } from '../../entities/company.entity';
 
 const OPS_STAGES = [
   PipelineStage.SUBMITTED, PipelineStage.SHORTLISTED,
@@ -22,7 +23,19 @@ export class OperationsService {
     private logRepo: Repository<InternActivityLog>,
     @InjectRepository(TrainingCandidate)
     private candidateRepo: Repository<TrainingCandidate>,
+    @InjectRepository(Company)
+    private companyRepo: Repository<Company>,
   ) {}
+
+  async getClientCompanies(): Promise<string[]> {
+    const rows = await this.companyRepo
+      .createQueryBuilder('c')
+      .select('c.name', 'name')
+      .where('c.name IS NOT NULL')
+      .orderBy('c.name', 'ASC')
+      .getRawMany();
+    return rows.map(r => r.name).filter(Boolean);
+  }
 
   async getPipeline(query: {
     stage?: string; domain?: string; enrollmentId?: string;

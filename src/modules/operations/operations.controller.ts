@@ -22,6 +22,12 @@ export class OperationsController {
     return this.svc.getDashboardStats();
   }
 
+  @Get('companies')
+  @ApiOperation({ summary: 'List client companies for interview scheduling dropdown' })
+  getCompanies() {
+    return this.svc.getClientCompanies();
+  }
+
   @Get('pipeline')
   @ApiOperation({ summary: 'Get candidate pipeline (submitted+)' })
   getPipeline(
