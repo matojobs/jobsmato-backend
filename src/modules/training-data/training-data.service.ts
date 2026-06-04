@@ -38,7 +38,7 @@ export class TrainingDataService {
       .select('c.source', 'source')
       .addSelect('COUNT(*)', 'count')
       .groupBy('c.source')
-      .limit(10)
+      .orderBy('count', 'DESC')
       .getRawMany();
     const portals = bySource.map(r => ({ name: r.source || 'Unknown', count: parseInt(r.count) }));
     return { total, assigned, available, byStatus, bySource, portals };
