@@ -218,8 +218,20 @@ export class BatchTasksService {
 
     const qb = this.candidateRepo.createQueryBuilder('c').orderBy('RANDOM()').limit(count);
     if (usedIds.length > 0) qb.where('c.id NOT IN (:...usedIds)', { usedIds });
-    if (companies?.length) qb.andWhere('c.currentCompany IN (:...companies)', { companies });
-    if (profiles?.length) qb.andWhere('c.currentDesignation IN (:...profiles)', { profiles });
+    // Use sourcedForCompany + sourcedForRole for filtering (training data columns)
+    // Fall back to currentCompany + currentDesignation if empty (for live data)
+    if (companies?.length) {
+      qb.andWhere(
+        `(c."sourcedForCompany" IN (:...companies) OR c."currentCompany" IN (:...companies))`,
+        { companies },
+      );
+    }
+    if (profiles?.length) {
+      qb.andWhere(
+        `(c."sourcedForRole" IN (:...profiles) OR c."currentDesignation" IN (:...profiles))`,
+        { profiles },
+      );
+    }
     if (cities?.length) qb.andWhere('c.currentCity IN (:...cities)', { cities });
 
     const candidates = await qb.getMany();
@@ -253,7 +265,13 @@ export class BatchTasksService {
 
     if (usedIds.length > 0) qb.where('c.id NOT IN (:...usedIds)', { usedIds });
     if (source) qb.andWhere('c.source = :source', { source });
-    if (city) qb.andWhere('c.currentCity ILIKE :city', { city: `%${city}%` });
+    // City filter: check both currentCity (for live data) and from sourcedForRole/company data
+    if (city) {
+      qb.andWhere(
+        `(c."currentCity" ILIKE :city OR c."sourcedForRole" ILIKE :city)`,
+        { city: `%${city}%` },
+      );
+    }
 
     const candidates = await qb.getMany();
     if (candidates.length === 0) return 0;
