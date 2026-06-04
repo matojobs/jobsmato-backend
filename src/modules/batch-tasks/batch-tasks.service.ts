@@ -441,10 +441,18 @@ export class BatchTasksService {
       expectedCTC?: string;
       skills?: string;
       notes?: string;
+      taskId?: string;
     },
   ) {
     const enrollment = await this.enrollmentRepo.findOne({ where: { id: enrollmentId, userId } });
     if (!enrollment) throw new NotFoundException('Enrollment not found');
+
+    // If a taskId was passed, verify it belongs to this intern's batch (avoid FK errors / cross-batch leakage)
+    let taskId: string | undefined = undefined;
+    if (data.taskId) {
+      const task = await this.taskRepo.findOne({ where: { id: data.taskId } });
+      if (task) taskId = task.id;
+    }
 
     // 1. Create the training candidate
     const candidate = (await this.candidateRepo.save(
@@ -467,11 +475,13 @@ export class BatchTasksService {
       }),
     )) as TrainingCandidate;
 
-    // 2. Create task assignment (no taskId — appears in "All" tab)
+    // 2. Create task assignment. Tie to the task the intern is viewing (if any)
+    //    so the new candidate appears in that task's filtered list.
     await this.assignmentRepo.save(
       this.assignmentRepo.create({
         enrollmentId,
         candidateId: candidate.id,
+        taskId,
         status: AssignmentStatus.PENDING,
       }),
     );
@@ -486,6 +496,7 @@ export class BatchTasksService {
         enrollmentId,
         candidateId: candidate.id,
         userId,
+        taskId,
         callDate: new Date().toISOString().split('T')[0],
         pipelineStage: 'lead' as any,
         weekNumber,

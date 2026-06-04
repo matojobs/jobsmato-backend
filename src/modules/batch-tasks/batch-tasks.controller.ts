@@ -139,6 +139,7 @@ export class BatchTasksController {
       expectedCTC?: string;
       skills?: string;
       notes?: string;
+      taskId?: string;
     },
   ) {
     return this.batchTasksService.addReferenceCandidate(enrollmentId, user.id, body);
