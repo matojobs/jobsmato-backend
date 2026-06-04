@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InternActivityLog } from '../../entities/intern-activity-log.entity';
@@ -8,6 +8,8 @@ import { CandidateSignupToken } from '../../entities/candidate-signup-token.enti
 
 @Injectable()
 export class ActivityLogsService {
+  private readonly logger = new Logger(ActivityLogsService.name);
+
   constructor(
     @InjectRepository(InternActivityLog)
     private logRepo: Repository<InternActivityLog>,
@@ -284,27 +286,55 @@ export class ActivityLogsService {
    * then merge the new fields in. This is the primary endpoint for the intern KRA flow.
    */
   async upsertLog(userId: number, data: any) {
-    const enrollment = await this.verifyOwnership(data.enrollmentId, userId);
-    const weekNumber = this.getWeekNumber(enrollment);
+    try {
+      // Validate required fields
+      if (!data.enrollmentId) throw new BadRequestException('enrollmentId is required');
+      if (!data.candidateId) throw new BadRequestException('candidateId is required');
 
-    const existing = await this.logRepo.findOne({
-      where: { enrollmentId: data.enrollmentId, candidateId: parseInt(data.candidateId) },
-    });
+      const candidateId = parseInt(data.candidateId, 10);
+      if (isNaN(candidateId)) throw new BadRequestException('candidateId must be a valid number');
 
-    if (!existing) {
-      const newLog = this.logRepo.create({ ...data, userId, weekNumber });
-      const saved = await this.logRepo.save(newLog);
-      await this.handleCandidateLock(parseInt(data.candidateId), data.enrollmentId, data.pipelineStage);
+      this.logger.debug(`upsertLog called: userId=${userId}, candidateId=${candidateId}, enrollmentId=${data.enrollmentId}`);
+
+      const enrollment = await this.verifyOwnership(data.enrollmentId, userId);
+      const weekNumber = this.getWeekNumber(enrollment);
+
+      const existing = await this.logRepo.findOne({
+        where: { enrollmentId: data.enrollmentId, candidateId },
+      });
+
+      if (!existing) {
+        const newLog = this.logRepo.create({ ...data, userId, weekNumber, candidateId });
+        const saved = await this.logRepo.save(newLog);
+        this.logger.debug(`Created new activity log: ${(saved as any).id}`);
+
+        try {
+          await this.handleCandidateLock(candidateId, data.enrollmentId, data.pipelineStage);
+        } catch (lockErr) {
+          this.logger.warn(`handleCandidateLock failed: ${lockErr.message}`);
+          // Don't block on lock failures
+        }
+        return saved;
+      }
+
+      // Merge — never overwrite with undefined/null
+      Object.keys(data).forEach(k => {
+        if (data[k] !== undefined && data[k] !== null) (existing as any)[k] = data[k];
+      });
+      const saved = await this.logRepo.save(existing);
+      this.logger.debug(`Updated activity log: ${(existing as any).id}`);
+
+      try {
+        await this.handleCandidateLock(candidateId, data.enrollmentId, data.pipelineStage);
+      } catch (lockErr) {
+        this.logger.warn(`handleCandidateLock failed: ${lockErr.message}`);
+        // Don't block on lock failures
+      }
       return saved;
+    } catch (err) {
+      this.logger.error(`upsertLog error: ${err.message}`, err.stack);
+      throw err;
     }
-
-    // Merge — never overwrite with undefined/null
-    Object.keys(data).forEach(k => {
-      if (data[k] !== undefined && data[k] !== null) (existing as any)[k] = data[k];
-    });
-    const saved = await this.logRepo.save(existing);
-    await this.handleCandidateLock(parseInt(data.candidateId), data.enrollmentId, data.pipelineStage);
-    return saved;
   }
 
   // ── Admin: cross-intern leaderboard ──────────────────────────────────────────
