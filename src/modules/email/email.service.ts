@@ -71,8 +71,8 @@ export class EmailService {
    * Send password reset email
    */
   async sendPasswordResetEmail(email: string, resetToken: string): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'https://jobsmato.com');
-    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+    const internshipUrl = this.configService.get<string>('INTERNSHIP_FRONTEND_URL', 'https://intern.jobsmato.com');
+    const resetUrl = `${internshipUrl}/reset-password?token=${resetToken}`;
 
     await this.sendEmailByType(EmailType.PASSWORD_RESET, email, { resetUrl });
   }
