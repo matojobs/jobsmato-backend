@@ -164,6 +164,40 @@ export class TrainingDataService {
   }
 
   /**
+   * Faceted breakdown of the candidate pool matching current company/profile/city
+   * selections.  Returns all distinct values with counts so admin can see
+   * variants (e.g. "Bengaluru Rural", "Bengaluru Urban") and refine further.
+   */
+  async getFacets(companies: string[], profiles: string[], cities: string[]) {
+    const base = () => {
+      const qb = this.candidateRepo.createQueryBuilder('c');
+      if (companies.length) qb.andWhere('c.currentCompany IN (:...companies)', { companies });
+      if (profiles.length) qb.andWhere('c.currentDesignation IN (:...profiles)', { profiles });
+      if (cities.length) qb.andWhere('c.currentCity IN (:...cities)', { cities });
+      return qb;
+    };
+
+    const [cityRows, companyRows, profileRows, total] = await Promise.all([
+      base()
+        .select('c.currentCity', 'value').addSelect('COUNT(*)', 'count')
+        .andWhere('c.currentCity IS NOT NULL').andWhere("c.currentCity != ''")
+        .groupBy('c.currentCity').orderBy('count', 'DESC').getRawMany(),
+      base()
+        .select('c.currentCompany', 'value').addSelect('COUNT(*)', 'count')
+        .andWhere('c.currentCompany IS NOT NULL').andWhere("c.currentCompany != ''")
+        .groupBy('c.currentCompany').orderBy('count', 'DESC').getRawMany(),
+      base()
+        .select('c.currentDesignation', 'value').addSelect('COUNT(*)', 'count')
+        .andWhere('c.currentDesignation IS NOT NULL').andWhere("c.currentDesignation != ''")
+        .groupBy('c.currentDesignation').orderBy('count', 'DESC').getRawMany(),
+      base().getCount(),
+    ]);
+
+    const parse = (rows: any[]) => rows.map(r => ({ value: r.value, count: parseInt(r.count) }));
+    return { total, cities: parse(cityRows), companies: parse(companyRows), profiles: parse(profileRows) };
+  }
+
+  /**
    * Step 6 — Preview candidates: training candidates who are good fits for
    * the selected job requirements (role-family keyword match + city match).
    */

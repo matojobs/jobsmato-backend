@@ -43,6 +43,20 @@ export class TrainingDataController {
     return this.trainingDataService.getCities(c, p);
   }
 
+  /**
+   * Faceted breakdown of the candidate pool matching current selections.
+   * Returns all distinct city/company/profile values with counts so admin
+   * can see variants (e.g. Bengaluru Rural, Bengaluru Urban) and refine.
+   */
+  @Post('admin/facets')
+  getFacets(
+    @Body('companies') companies: string[] = [],
+    @Body('profiles') profiles: string[] = [],
+    @Body('cities') cities: string[] = [],
+  ) {
+    return this.trainingDataService.getFacets(companies, profiles, cities);
+  }
+
   @Post('admin/preview')
   previewCandidates(
     @Body('companies') companies: string[] = [],
