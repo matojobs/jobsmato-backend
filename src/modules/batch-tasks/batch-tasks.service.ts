@@ -312,7 +312,10 @@ export class BatchTasksService {
         return { ...task, totalAssigned: total, calledCount: called, job };
       }),
     );
-    return result;
+
+    // Only show tasks where this intern actually has candidates assigned.
+    // Tasks with 0 assignments mean admin excluded this intern from that task.
+    return result.filter(t => t.totalAssigned > 0);
   }
 
   /**
