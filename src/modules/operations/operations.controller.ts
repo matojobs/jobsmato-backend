@@ -55,6 +55,7 @@ export class OperationsController {
       interviewDate: string; interviewTime?: string;
       clientName: string; interviewMode: string;
       interviewLocation?: string; opsNotes?: string;
+      round?: 'r1' | 'r2' | 'final';
     },
   ) {
     return this.svc.scheduleInterview(logId, body);

@@ -90,10 +90,17 @@ export class OperationsService {
 
   async scheduleInterview(logId: string, dto: {
     interviewDate: string; interviewTime?: string;
-    clientName: string; interviewMode: string; interviewLocation?: string; opsNotes?: string;
+    clientName: string; interviewMode: string; interviewLocation?: string;
+    opsNotes?: string; round?: 'r1' | 'r2' | 'final';
   }) {
     const log = await this.logRepo.findOne({ where: { id: logId } });
     if (!log) throw new NotFoundException('Log not found');
+
+    const stageMap: Record<string, PipelineStage> = {
+      r1:    PipelineStage.INTERVIEW_R1,
+      r2:    PipelineStage.INTERVIEW_R2,
+      final: PipelineStage.FINAL_ROUND,
+    };
 
     log.interviewDate = dto.interviewDate;
     log.interviewTime = dto.interviewTime ?? log.interviewTime;
@@ -102,7 +109,7 @@ export class OperationsService {
     log.interviewLocation = dto.interviewLocation ?? log.interviewLocation;
     log.opsNotes = dto.opsNotes ?? log.opsNotes;
     log.interviewScheduled = true;
-    log.pipelineStage = PipelineStage.INTERVIEW_R1;
+    log.pipelineStage = stageMap[dto.round ?? 'r1'] ?? PipelineStage.INTERVIEW_R1;
 
     await this.logRepo.save(log);
     return this.formatLog(log);
