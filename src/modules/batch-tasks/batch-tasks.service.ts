@@ -418,6 +418,82 @@ export class BatchTasksService {
     return { assignments, total, page, totalPages: Math.ceil(total / take) };
   }
 
+  /**
+   * Intern adds a reference candidate from their own network.
+   * Creates a TrainingCandidate tagged as intern_reference, then creates
+   * a TaskAssignment so the candidate appears in the intern's task list.
+   * Also visible to admin in the training data pool.
+   */
+  async addReferenceCandidate(
+    enrollmentId: string,
+    userId: number,
+    data: {
+      name: string;
+      phone: string;
+      currentCity?: string;
+      sourcedForRole?: string;
+      experience?: string;
+      currentCompany?: string;
+      currentDesignation?: string;
+      currentCTC?: string;
+      expectedCTC?: string;
+      skills?: string;
+      notes?: string;
+    },
+  ) {
+    const enrollment = await this.enrollmentRepo.findOne({ where: { id: enrollmentId, userId } });
+    if (!enrollment) throw new NotFoundException('Enrollment not found');
+
+    // 1. Create the training candidate
+    const candidate = (await this.candidateRepo.save(
+      this.candidateRepo.create({
+        name: data.name,
+        phone: data.phone,
+        currentCity: data.currentCity || undefined,
+        sourcedForRole: data.sourcedForRole || undefined,
+        experience: data.experience || undefined,
+        currentCompany: data.currentCompany || undefined,
+        currentDesignation: data.currentDesignation || undefined,
+        currentCTC: data.currentCTC || undefined,
+        expectedCTC: data.expectedCTC || undefined,
+        skills: data.skills || undefined,
+        source: 'intern_reference',
+        assignedToEnrollmentId: enrollmentId,
+        assignedAt: new Date(),
+        assignedByUserId: userId,
+        status: 'active',
+      }),
+    )) as TrainingCandidate;
+
+    // 2. Create task assignment (no taskId — appears in "All" tab)
+    await this.assignmentRepo.save(
+      this.assignmentRepo.create({
+        enrollmentId,
+        candidateId: candidate.id,
+        status: AssignmentStatus.PENDING,
+      }),
+    );
+
+    const weekNumber = Math.max(1, Math.ceil(
+      (Date.now() - new Date(enrollment.enrolledAt).getTime()) / (7 * 24 * 60 * 60 * 1000)
+    ));
+
+    // 3. Create an activity log entry so it shows pipeline stage = lead
+    await this.activityLogRepo.save(
+      this.activityLogRepo.create({
+        enrollmentId,
+        candidateId: candidate.id,
+        userId,
+        callDate: new Date().toISOString().split('T')[0],
+        pipelineStage: 'lead' as any,
+        weekNumber,
+        notes: data.notes || undefined,
+      }),
+    );
+
+    return { success: true, candidate };
+  }
+
   /** Mark an assignment as called/skipped */
   async updateAssignmentStatus(assignmentId: string, enrollmentId: string, status: AssignmentStatus) {
     const a = await this.assignmentRepo.findOne({ where: { id: assignmentId, enrollmentId } });

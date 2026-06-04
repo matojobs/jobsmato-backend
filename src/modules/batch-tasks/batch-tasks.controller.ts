@@ -122,6 +122,28 @@ export class BatchTasksController {
     return this.batchTasksService.getMyCandidates(enrollmentId, user.id, taskId, +page, search);
   }
 
+  /** Intern adds a reference candidate from their own network */
+  @Post('my/:enrollmentId/add-reference')
+  addReference(
+    @Param('enrollmentId') enrollmentId: string,
+    @CurrentUser() user: any,
+    @Body() body: {
+      name: string;
+      phone: string;
+      currentCity?: string;
+      sourcedForRole?: string;
+      experience?: string;
+      currentCompany?: string;
+      currentDesignation?: string;
+      currentCTC?: string;
+      expectedCTC?: string;
+      skills?: string;
+      notes?: string;
+    },
+  ) {
+    return this.batchTasksService.addReferenceCandidate(enrollmentId, user.id, body);
+  }
+
   /** Mark an assignment as called/skipped */
   @Patch('assignment/:assignmentId')
   updateAssignment(
