@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { InternActivityLog, PipelineStage } from '../../entities/intern-activity-log.entity';
+import { TrainingCandidate } from '../../entities/training-candidate.entity';
 
 const OPS_STAGES = [
   PipelineStage.SUBMITTED, PipelineStage.SHORTLISTED,
@@ -11,11 +12,16 @@ const OPS_STAGES = [
   PipelineStage.OFFER_DECLINED,
 ];
 
+/** Outcomes that release the candidate back to the talent pool */
+const REJECTION_OUTCOMES = ['client_rejected', 'interview_failed', 'offer_declined'];
+
 @Injectable()
 export class OperationsService {
   constructor(
     @InjectRepository(InternActivityLog)
     private logRepo: Repository<InternActivityLog>,
+    @InjectRepository(TrainingCandidate)
+    private candidateRepo: Repository<TrainingCandidate>,
   ) {}
 
   async getPipeline(query: {
@@ -109,6 +115,25 @@ export class OperationsService {
     log.opsNotes = dto.opsNotes ?? log.opsNotes;
 
     await this.logRepo.save(log);
+
+    // ── Update training_candidate status based on outcome ────────────────────
+    if (log.candidateId) {
+      if (REJECTION_OUTCOMES.includes(dto.outcome)) {
+        // Rejected → return to talent pool + release lock so another intern can pitch them
+        await this.candidateRepo.update(log.candidateId, {
+          status: 'talent_pool',
+          lockedByEnrollmentId: null as any,
+          lockedAt: null as any,
+        });
+      } else if (dto.outcome === 'joined') {
+        // Joined → mark as hired (remove from callable pool)
+        await this.candidateRepo.update(log.candidateId, {
+          status: 'hired',
+        });
+      }
+      // 'selected' / 'offer_accepted' → keep locked (still in process), no status change yet
+    }
+
     return this.formatLog(log);
   }
 
