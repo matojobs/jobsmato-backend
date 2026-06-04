@@ -508,7 +508,7 @@ export class ActivityLogsService {
     ];
     const UNLOCK_STAGES = [
       'not_interested', 'profile_mismatch', 'client_rejected', 'interview_failed',
-      'offer_declined', 'talent_pool', 'no_response',
+      'offer_declined', 'talent_pool', 'no_response', 'wrong_number',
     ];
 
     if (LOCK_STAGES.includes(stage)) {

@@ -48,6 +48,7 @@ export enum PipelineStage {
   INTERVIEW_FAILED  = 'interview_failed',
   OFFER_DECLINED    = 'offer_declined',
   TALENT_POOL       = 'talent_pool',
+  WRONG_NUMBER      = 'wrong_number',
 }
 
 @Entity('intern_activity_logs')
