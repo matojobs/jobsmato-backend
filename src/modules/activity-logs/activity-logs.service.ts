@@ -124,6 +124,51 @@ export class ActivityLogsService {
     }));
   }
 
+  /**
+   * Pending actions: candidates whose pipeline stage was set by operations
+   * (interview scheduled, selected, rejected) and the intern hasn't yet
+   * informed the candidate.  These are "ops-action" stages that need a
+   * follow-up call from the intern.
+   */
+  async getPendingActions(enrollmentId: string, userId: number) {
+    await this.verifyOwnership(enrollmentId, userId);
+
+    const OPS_ACTION_STAGES = [
+      'shortlisted', 'interview_r1', 'interview_r2', 'final_round',
+      'selected', 'offer_released',
+      'client_rejected', 'interview_failed',
+    ];
+
+    const logs = await this.logRepo
+      .createQueryBuilder('log')
+      .leftJoinAndSelect('log.candidate', 'candidate')
+      .where('log.enrollmentId = :enrollmentId', { enrollmentId })
+      .andWhere('log.pipelineStage IN (:...stages)', { stages: OPS_ACTION_STAGES })
+      .orderBy('log.updatedAt', 'DESC')
+      .getMany();
+
+    const items = logs.map(log => ({
+      logId: log.id,
+      candidateId: log.candidateId,
+      candidateName: (log.candidate as any)?.name,
+      candidatePhone: (log.candidate as any)?.phone,
+      pipelineStage: log.pipelineStage,
+      updatedAt: log.updatedAt,
+      actionType: (() => {
+        const s = log.pipelineStage;
+        if (['shortlisted', 'interview_r1', 'interview_r2', 'final_round'].includes(s))
+          return 'interview_scheduled';
+        if (['selected', 'offer_released'].includes(s))
+          return 'selected';
+        if (['client_rejected', 'interview_failed'].includes(s))
+          return 'rejected';
+        return 'other';
+      })(),
+    }));
+
+    return { count: items.length, items };
+  }
+
   async getCandidateLog(enrollmentId: string, userId: number, candidateId: string) {
     await this.verifyOwnership(enrollmentId, userId);
     return this.logRepo.find({

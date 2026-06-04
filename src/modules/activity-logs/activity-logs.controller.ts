@@ -53,6 +53,18 @@ export class ActivityLogsController {
     return this.activityLogsService.getPerformanceSummary(enrollmentId, user.id, period);
   }
 
+  /**
+   * Intern: candidates in ops-action stages (interview scheduled, selected, rejected)
+   * that need a follow-up call from the intern.
+   */
+  @Get('my/pending-actions')
+  getPendingActions(
+    @CurrentUser() user: any,
+    @Query('enrollmentId') enrollmentId: string,
+  ) {
+    return this.activityLogsService.getPendingActions(enrollmentId, user.id);
+  }
+
   /** Intern: follow-ups scheduled via "Call Back Later" */
   @Get('my/followups')
   getFollowups(
