@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, Brackets } from 'typeorm';
 import { BatchTask, BatchTaskStatus } from '../../entities/batch-task.entity';
 import { TaskAssignment, AssignmentStatus } from '../../entities/task-assignment.entity';
 import { InternshipEnrollment, EnrollmentStatus } from '../../entities/internship-enrollment.entity';
 import { TrainingCandidate } from '../../entities/training-candidate.entity';
 import { InternActivityLog } from '../../entities/intern-activity-log.entity';
 import { Job } from '../../entities/job.entity';
+import { JobRoleMappingService } from '../job-role-mapping/job-role-mapping.service';
+import { familyKeywordsFor } from '../training-data/role-families';
 
 @Injectable()
 export class BatchTasksService {
+  private readonly logger = new Logger(BatchTasksService.name);
+
   constructor(
     @InjectRepository(BatchTask)
     private taskRepo: Repository<BatchTask>,
@@ -23,6 +27,7 @@ export class BatchTasksService {
     private activityLogRepo: Repository<InternActivityLog>,
     @InjectRepository(Job)
     private jobRepo: Repository<Job>,
+    private jobRoleMappingService: JobRoleMappingService,
   ) {}
 
   /** All active jobs — for the task wizard job picker.
@@ -201,7 +206,7 @@ export class BatchTasksService {
     return { enrollmentId, assigned };
   }
 
-  /** Rich assignment: filter by company + profile + city */
+  /** Rich assignment: smart role matching with keyword extraction */
   private async assignCandidatesToEnrollmentRich(
     enrollmentId: string,
     taskId: string | null,
@@ -218,24 +223,56 @@ export class BatchTasksService {
 
     const qb = this.candidateRepo.createQueryBuilder('c').orderBy('RANDOM()').limit(count);
     if (usedIds.length > 0) qb.where('c.id NOT IN (:...usedIds)', { usedIds });
-    // Use sourcedForCompany + sourcedForRole for filtering (training data columns)
-    // Fall back to currentCompany + currentDesignation if empty (for live data)
-    if (companies?.length) {
-      qb.andWhere(
-        `(c."sourcedForCompany" IN (:...companies) OR c."currentCompany" IN (:...companies))`,
-        { companies },
-      );
-    }
+
+    // SKIP company filtering (training data companies ≠ job posting companies)
+    // Only filter by roles and cities
+
+    // Smart role matching: use keyword extraction instead of exact matching
     if (profiles?.length) {
-      qb.andWhere(
-        `(c."sourcedForRole" IN (:...profiles) OR c."currentDesignation" IN (:...profiles))`,
-        { profiles },
-      );
+      let trainingRoles: string[] = [];
+
+      // For each job title, get training roles (exact or keywords)
+      for (const profile of profiles) {
+        try {
+          const mapping = await this.jobRoleMappingService.getOrCreateMapping(profile);
+          trainingRoles = [...trainingRoles, ...mapping.trainingRoles];
+        } catch (err) {
+          // Fallback: extract keywords directly
+          const keywords = familyKeywordsFor(profile);
+          trainingRoles = [...trainingRoles, ...keywords];
+        }
+      }
+
+      // Remove duplicates
+      const uniqueRoles = [...new Set(trainingRoles)];
+
+      if (uniqueRoles.length) {
+        qb.andWhere(new Brackets(b => {
+          uniqueRoles.forEach((role, i) => {
+            const iLikePattern = `%${role}%`;
+            if (i === 0) {
+              b.where(`c."sourcedForRole" ILIKE :role${i}`, { [`role${i}`]: iLikePattern });
+            } else {
+              b.orWhere(`c."sourcedForRole" ILIKE :role${i}`, { [`role${i}`]: iLikePattern });
+            }
+          });
+        }));
+      }
     }
-    if (cities?.length) qb.andWhere('c.currentCity IN (:...cities)', { cities });
+
+    // Filter by city only
+    if (cities?.length) {
+      qb.andWhere('c.currentCity IN (:...cities)', { cities });
+    }
 
     const candidates = await qb.getMany();
-    if (candidates.length === 0) return 0;
+
+    if (candidates.length === 0) {
+      this.logger.warn(
+        `No candidates found for assignment: profiles=${JSON.stringify(profiles)}, cities=${JSON.stringify(cities)}`
+      );
+      return 0;
+    }
 
     const rows = candidates.map(c => this.assignmentRepo.create({
       enrollmentId, candidateId: c.id, taskId: taskId ?? undefined, status: AssignmentStatus.PENDING,

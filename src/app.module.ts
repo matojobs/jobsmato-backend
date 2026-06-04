@@ -28,10 +28,12 @@ import { InternshipsModule } from './modules/internships/internships.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { BatchTasksModule } from './modules/batch-tasks/batch-tasks.module';
 import { TrainingDataModule } from './modules/training-data/training-data.module';
+import { JobRoleMappingModule } from './modules/job-role-mapping/job-role-mapping.module';
 import { ActivityLogsModule } from './modules/activity-logs/activity-logs.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { EvaluationsModule } from './modules/evaluations/evaluations.module';
 import { CertificatesModule } from './modules/certificates/certificates.module';
+import { CandidateSignupModule } from './modules/candidate-signup/candidate-signup.module';
 
 @Module({
   imports: [
@@ -87,10 +89,12 @@ import { CertificatesModule } from './modules/certificates/certificates.module';
     OperationsModule,
     BatchTasksModule,
     TrainingDataModule,
+    JobRoleMappingModule,
     ActivityLogsModule,
     CouponsModule,
     EvaluationsModule,
     CertificatesModule,
+    CandidateSignupModule,
   ],
   controllers: [AppController],
   providers: [AppService],

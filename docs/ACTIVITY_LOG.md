@@ -296,3 +296,15 @@ If port 5000 is in use it is killed first; Postgres is started if needed; backen
 
 ### Files created
 - `.cursorignore`
+
+---
+
+## 2026-05-10 - Server details and connection documentation
+
+### What was done
+- Added a dedicated operations document for server architecture, SSH connection flow, deployment behavior, and credential storage locations.
+- Included explicit credential location mapping: SSH key paths, local `.env`, server `/home/jobsmato/.env`, Cloudflare tunnel config and credentials file paths.
+- Added quick verification commands and a short section for deploying another project on the same server using host-based routing.
+
+### Files created
+- `docs/SERVER-DETAILS-AND-CONNECTION.md`

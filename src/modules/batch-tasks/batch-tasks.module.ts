@@ -8,6 +8,7 @@ import { InternActivityLog } from '../../entities/intern-activity-log.entity';
 import { Job } from '../../entities/job.entity';
 import { BatchTasksController } from './batch-tasks.controller';
 import { BatchTasksService } from './batch-tasks.service';
+import { JobRoleMappingModule } from '../job-role-mapping/job-role-mapping.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { BatchTasksService } from './batch-tasks.service';
       BatchTask, TaskAssignment, InternshipEnrollment,
       TrainingCandidate, InternActivityLog, Job,
     ]),
+    JobRoleMappingModule,
   ],
   controllers: [BatchTasksController],
   providers: [BatchTasksService],
