@@ -51,58 +51,156 @@ export class TrainingDataService {
     return qb.skip((page - 1) * take).take(take).getManyAndCount();
   }
 
-  /** Distinct company names in the pool (sourced-for companies from our 54k dataset) */
+  // ── Helper ─────────────────────────────────────────────────────────────────
+
+  /** Extract city from job.location strings like "GURUGRAM, HARYANA" or "New Delhi" */
+  private extractCity(location: string): string {
+    if (!location || location.toLowerCase().includes('multiple')) return '';
+    return location.split(',')[0].trim()
+      .toLowerCase()
+      .replace(/\b\w/g, c => c.toUpperCase()); // title case
+  }
+
+  // ── Task Wizard data (Steps 2, 3, 4) ───────────────────────────────────────
+
+  /**
+   * Step 2 — Companies: distinct companies that have ACTIVE job postings on Jobsmato.
+   * Admin picks who they are sourcing for.
+   */
   async getCompanies() {
-    const rows = await this.candidateRepo
-      .createQueryBuilder('c')
-      .select('DISTINCT c.sourcedForCompany', 'company')
-      .where('c.sourcedForCompany IS NOT NULL')
-      .andWhere("c.sourcedForCompany != ''")
-      // Exclude Excel date serials, date strings, and pure-numeric garbage
-      .andWhere("c.sourcedForCompany !~ '^[0-9/\\-\\.]+$'")
-      .andWhere('LENGTH(c.sourcedForCompany) > 2')
-      .orderBy('company', 'ASC')
+    const rows = await this.jobRepo
+      .createQueryBuilder('job')
+      .leftJoin('job.company', 'company')
+      .select('DISTINCT company.name', 'name')
+      .where("job.status IN ('active', 'draft')")
+      .andWhere('company.name IS NOT NULL')
+      .andWhere("company.name != ''")
+      .orderBy('company.name', 'ASC')
       .getRawMany();
-    return rows.map(r => r.company).filter(Boolean);
+    return rows.map(r => r.name).filter(Boolean);
   }
 
-  /** Distinct job profiles/roles in the pool, optionally filtered by companies */
+  /**
+   * Step 3 — Roles: job titles actively required by the selected companies.
+   * Admin picks which openings to source candidates for.
+   */
   async getProfiles(companies?: string[]) {
-    const qb = this.candidateRepo
-      .createQueryBuilder('c')
-      .select('DISTINCT c.sourcedForRole', 'profile')
-      .where('c.sourcedForRole IS NOT NULL')
-      .andWhere("c.sourcedForRole != ''");
-    if (companies?.length) qb.andWhere('c.sourcedForCompany IN (:...companies)', { companies });
-    const rows = await qb.orderBy('profile', 'ASC').getRawMany();
-    return rows.map(r => r.profile).filter(Boolean);
+    const qb = this.jobRepo
+      .createQueryBuilder('job')
+      .leftJoin('job.company', 'company')
+      .select('DISTINCT job.title', 'title')
+      .where("job.status IN ('active', 'draft')")
+      .andWhere('job.title IS NOT NULL');
+    if (companies?.length) qb.andWhere('company.name IN (:...companies)', { companies });
+    const rows = await qb.orderBy('job.title', 'ASC').getRawMany();
+    return rows.map(r => r.title).filter(Boolean);
   }
 
-  /** Cities with candidate count, filtered by sourced company + role */
+  /**
+   * Step 4 — Cities: locations where the selected companies+roles have openings.
+   * Count = number of training candidates available in that city (so admin knows supply).
+   */
   async getCities(companies?: string[], profiles?: string[]) {
-    const qb = this.candidateRepo
+    // 1. Get the cities from active job postings for selected companies + roles
+    const jqb = this.jobRepo
+      .createQueryBuilder('job')
+      .leftJoin('job.company', 'company')
+      .select(['job.location', 'job.vacancies'])
+      .where("job.status IN ('active', 'draft')")
+      .andWhere('job.location IS NOT NULL');
+    if (companies?.length) jqb.andWhere('company.name IN (:...companies)', { companies });
+    if (profiles?.length) jqb.andWhere('job.title IN (:...profiles)', { profiles });
+    const jobs = await jqb.getMany();
+
+    // Extract unique cities from job locations + vacancies
+    const citiesFromJobs = new Set<string>();
+    jobs.forEach(j => {
+      // From main location field
+      const city = this.extractCity(j.location || '');
+      if (city) citiesFromJobs.add(city);
+      // From vacancies JSONB array (if set)
+      if (Array.isArray(j.vacancies)) {
+        j.vacancies.forEach((v: any) => {
+          const vc = this.extractCity(v.city || '');
+          if (vc) citiesFromJobs.add(vc);
+        });
+      }
+    });
+
+    if (citiesFromJobs.size === 0) {
+      // Fallback: return cities from candidate pool
+      const rows = await this.candidateRepo
+        .createQueryBuilder('c')
+        .select('c.currentCity', 'city').addSelect('COUNT(*)', 'count')
+        .where('c.currentCity IS NOT NULL').andWhere("c.currentCity != ''")
+        .groupBy('c.currentCity').orderBy('count', 'DESC').limit(50).getRawMany();
+      return rows.map(r => ({ city: r.city, count: parseInt(r.count) }));
+    }
+
+    // 2. For each job-posting city, count available training candidates
+    const cityList = Array.from(citiesFromJobs);
+    const rows = await this.candidateRepo
       .createQueryBuilder('c')
       .select('c.currentCity', 'city')
       .addSelect('COUNT(*)', 'count')
       .where('c.currentCity IS NOT NULL')
-      .andWhere("c.currentCity != ''");
-    if (companies?.length) qb.andWhere('c.sourcedForCompany IN (:...companies)', { companies });
-    if (profiles?.length) qb.andWhere('c.sourcedForRole IN (:...profiles)', { profiles });
-    const rows = await qb.groupBy('c.currentCity').orderBy('count', 'DESC').limit(50).getRawMany();
-    return rows.map(r => ({ city: r.city, count: parseInt(r.count) }));
+      .andWhere("c.currentCity != ''")
+      // Case-insensitive city match
+      .andWhere(
+        `LOWER(c."currentCity") IN (:...cities)`,
+        { cities: cityList.map(x => x.toLowerCase()) },
+      )
+      .groupBy('c.currentCity')
+      .orderBy('count', 'DESC')
+      .getRawMany();
+
+    // Merge: keep all job cities, add candidate count (0 if no candidates there yet)
+    const countMap: Record<string, number> = {};
+    rows.forEach(r => { countMap[r.city.toLowerCase()] = parseInt(r.count); });
+
+    return cityList
+      .map(city => ({ city, count: countMap[city.toLowerCase()] ?? 0 }))
+      .sort((a, b) => b.count - a.count);
   }
 
-  /** Preview candidates matching filters */
+  /**
+   * Step 6 — Preview candidates: training candidates who are good fits for
+   * the selected job requirements (role-family keyword match + city match).
+   */
   async previewCandidates(
     companies: string[], profiles: string[], cities: string[],
     page = 1, limit = 20,
   ) {
-    const qb = this.candidateRepo.createQueryBuilder('c').orderBy('c.id', 'ASC');
-    if (companies?.length) qb.andWhere('c.sourcedForCompany IN (:...companies)', { companies });
-    if (profiles?.length) qb.andWhere('c.sourcedForRole IN (:...profiles)', { profiles });
-    if (cities?.length) qb.andWhere('c.currentCity IN (:...cities)', { cities });
-    // Exclude candidates already locked (interested/submitted by another intern)
-    qb.andWhere('c."lockedByEnrollmentId" IS NULL');
+    const qb = this.candidateRepo
+      .createQueryBuilder('c')
+      .where('c."lockedByEnrollmentId" IS NULL') // not currently locked by another intern
+      .andWhere("c.status IN ('unassigned', 'talent_pool')"); // available
+
+    // Role-family keyword matching: find candidates whose sourcedForRole matches job requirements
+    if (profiles?.length) {
+      const keywords = profiles.flatMap(title => familyKeywordsFor(title));
+      const unique = [...new Set(keywords)];
+      if (unique.length) {
+        const { Brackets } = await import('typeorm');
+        qb.andWhere(new Brackets(b => {
+          unique.forEach((kw, i) => {
+            b.orWhere(`c."sourcedForRole" ILIKE :kw${i}`, { [`kw${i}`]: `%${kw}%` });
+          });
+        }));
+      }
+    }
+
+    // City match (case-insensitive)
+    if (cities?.length) {
+      const { Brackets } = await import('typeorm');
+      qb.andWhere(new Brackets(b => {
+        cities.forEach((city, i) => {
+          b.orWhere(`LOWER(c."currentCity") = :city${i}`, { [`city${i}`]: city.toLowerCase() });
+        });
+      }));
+    }
+
+    qb.orderBy('c.id', 'ASC');
     const [candidates, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
     return { candidates, total, page, totalPages: Math.ceil(total / limit) };
   }
