@@ -125,6 +125,7 @@ export class BatchTasksService {
     batchId: string;
     title: string;
     description?: string;
+    callingPitch?: string;
     weekNumber?: number;
     targetCallCount?: number;
     dueDate?: string;
@@ -144,6 +145,7 @@ export class BatchTasksService {
       batchId: data.batchId,
       title: data.title,
       description: data.description,
+      callingPitch: data.callingPitch,
       weekNumber: data.weekNumber ?? 1,
       targetCallCount: data.targetCallCount ?? 30,
       dueDate: data.dueDate,

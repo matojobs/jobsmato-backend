@@ -23,6 +23,12 @@ export class BatchTask {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  /** Custom calling pitch/script written by admin for this task's job role.
+   *  Shown to interns in the task card. Falls back to the auto-generated
+   *  template when null. */
+  @Column({ type: 'text', nullable: true })
+  callingPitch: string;
+
   @Column({ default: 1 })
   weekNumber: number;
 
