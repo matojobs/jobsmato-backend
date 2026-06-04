@@ -357,8 +357,7 @@ export class JobsController {
   }
 
   @Get(':id/jd')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Download JD for a job (all authenticated users)' })
+  @ApiOperation({ summary: 'Download JD for a job (public — shared with candidates via WhatsApp)' })
   async downloadJd(
     @Param('id', ParseIntPipe) id: number,
     @Res() res: any,
