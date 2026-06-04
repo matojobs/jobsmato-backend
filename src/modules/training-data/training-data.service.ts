@@ -137,30 +137,31 @@ export class TrainingDataService {
       return rows.map(r => ({ city: r.city, count: parseInt(r.count) }));
     }
 
-    // 2. For each job-posting city, count available training candidates
+    // 2. For each job-posting city, find ALL candidate city variants using
+    //    a contains match (e.g. "Bengaluru" also returns "Bengaluru Rural",
+    //    "Bengaluru Urban"). Return distinct actual values with counts so
+    //    admin can select specific variants.
     const cityList = Array.from(citiesFromJobs);
-    const rows = await this.candidateRepo
+    const qb = this.candidateRepo
       .createQueryBuilder('c')
       .select('c.currentCity', 'city')
       .addSelect('COUNT(*)', 'count')
       .where('c.currentCity IS NOT NULL')
-      .andWhere("c.currentCity != ''")
-      // Case-insensitive city match
-      .andWhere(
-        `LOWER(c."currentCity") IN (:...cities)`,
-        { cities: cityList.map(x => x.toLowerCase()) },
-      )
+      .andWhere("c.currentCity != ''");
+
+    // Build OR conditions: LOWER(currentCity) LIKE '%bengaluru%' OR ...
+    const conditions = cityList
+      .map((_, i) => `LOWER(c."currentCity") LIKE :city${i}`)
+      .join(' OR ');
+    const params: Record<string, string> = {};
+    cityList.forEach((city, i) => { params[`city${i}`] = `%${city.toLowerCase()}%`; });
+
+    qb.andWhere(`(${conditions})`, params)
       .groupBy('c.currentCity')
-      .orderBy('count', 'DESC')
-      .getRawMany();
+      .orderBy('count', 'DESC');
 
-    // Merge: keep all job cities, add candidate count (0 if no candidates there yet)
-    const countMap: Record<string, number> = {};
-    rows.forEach(r => { countMap[r.city.toLowerCase()] = parseInt(r.count); });
-
-    return cityList
-      .map(city => ({ city, count: countMap[city.toLowerCase()] ?? 0 }))
-      .sort((a, b) => b.count - a.count);
+    const rows = await qb.getRawMany();
+    return rows.map(r => ({ city: r.city, count: parseInt(r.count) }));
   }
 
   /**
