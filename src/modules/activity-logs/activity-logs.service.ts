@@ -87,7 +87,16 @@ export class ActivityLogsService {
     return { logs, total, page, totalPages: Math.ceil(total / take) };
   }
 
-  /** Follow-ups: logs with followupDate set, sorted by date ASC */
+  /**
+   * Unified follow-ups: ALL things the intern needs to action, in priority order.
+   * Priority 1 — ops-set stages (interview scheduled, result in, selected, rejected)
+   * Priority 2 — overdue callbacks (followupDate < today)
+   * Priority 3 — today's callbacks
+   * Priority 4 — upcoming callbacks
+   *
+   * Each item has itemType: 'interview_scheduled' | 'round_passed' | 'selected' |
+   *   'rejected' | 'reschedule_pending' | 'callback'
+   */
   async getFollowups(
     enrollmentId: string,
     userId: number,
@@ -96,32 +105,127 @@ export class ActivityLogsService {
     await this.verifyOwnership(enrollmentId, userId);
     const today = new Date().toISOString().split('T')[0];
 
-    const qb = this.logRepo
+    const OPS_ACTION_STAGES = [
+      'shortlisted', 'interview_r1', 'interview_r2', 'final_round',
+      'selected', 'offer_released', 'client_rejected', 'interview_failed',
+    ];
+
+    const items: any[] = [];
+
+    // ── Priority 1: ops-action stages (interview scheduled, result in) ───────
+    if (filter === 'all') {
+      const opsLogs = await this.logRepo
+        .createQueryBuilder('log')
+        .leftJoinAndSelect('log.candidate', 'candidate')
+        .where('log.enrollmentId = :enrollmentId', { enrollmentId })
+        .andWhere('log.pipelineStage IN (:...stages)', { stages: OPS_ACTION_STAGES })
+        .orderBy('log.updatedAt', 'DESC')
+        .getMany();
+
+      for (const log of opsLogs) {
+        const stage = log.pipelineStage as string;
+        let itemType = 'ops_action';
+        let actionLabel = '';
+        let priority = 1;
+
+        if (['interview_r1', 'interview_r2', 'final_round'].includes(stage)) {
+          itemType = 'interview_scheduled';
+          const round = (log as any).interviewRound;
+          actionLabel = `Round ${round ?? '?'} scheduled${log.interviewDate ? ` on ${log.interviewDate}` : ''} — call candidate to inform & confirm`;
+        } else if (stage === 'shortlisted') {
+          itemType = 'interview_scheduled';
+          actionLabel = 'Interview being scheduled — inform candidate to stay available';
+        } else if (stage === 'selected') {
+          itemType = 'selected';
+          actionLabel = '🎉 Selected! Call candidate to congratulate & confirm joining date';
+          priority = 1;
+        } else if (stage === 'offer_released') {
+          itemType = 'offer';
+          actionLabel = 'Offer released — call candidate to confirm acceptance';
+        } else if (['client_rejected', 'interview_failed'].includes(stage)) {
+          itemType = 'rejected';
+          actionLabel = 'Result in — call candidate to inform them gently';
+        }
+
+        items.push({
+          id: log.id,
+          candidateId: log.candidateId,
+          candidate: log.candidate,
+          pipelineStage: log.pipelineStage,
+          itemType,
+          actionLabel,
+          priority,
+          interviewDate: log.interviewDate,
+          interviewTime: (log as any).interviewTime,
+          interviewLink: (log as any).interviewLink,
+          interviewRound: (log as any).interviewRound,
+          clientName: log.clientName,
+          interviewMode: log.interviewMode,
+          interviewLocation: log.interviewLocation,
+          rescheduleRequested: (log as any).rescheduleRequested,
+          clientFeedback: log.clientFeedback,
+          notes: log.notes,
+          updatedAt: log.updatedAt,
+          isOverdue: false,
+          isToday: false,
+        });
+      }
+    }
+
+    // ── Priority 2-4: scheduled callbacks ─────────────────────────────────────
+    const callbackQb = this.logRepo
       .createQueryBuilder('log')
       .leftJoinAndSelect('log.candidate', 'candidate')
       .where('log.enrollmentId = :enrollmentId', { enrollmentId })
       .andWhere('log.followupDate IS NOT NULL')
-      // Exclude candidates already moved past follow_up stage
       .andWhere("log.pipelineStage IN ('follow_up','no_response','contacted')")
       .orderBy('log.followupDate', 'ASC')
       .addOrderBy('log.followupTime', 'ASC');
 
-    if (filter === 'today')    qb.andWhere('log.followupDate = :today', { today });
-    if (filter === 'overdue')  qb.andWhere('log.followupDate < :today', { today });
-    if (filter === 'upcoming') qb.andWhere('log.followupDate > :today', { today });
+    if (filter === 'today')    callbackQb.andWhere('log.followupDate = :today', { today });
+    if (filter === 'overdue')  callbackQb.andWhere('log.followupDate < :today', { today });
+    if (filter === 'upcoming') callbackQb.andWhere('log.followupDate > :today', { today });
 
-    const logs = await qb.getMany();
-    return logs.map(log => ({
-      id: log.id,
-      candidateId: log.candidateId,
-      candidate: log.candidate,
-      followupDate: log.followupDate,
-      followupTime: (log as any).followupTime,
-      pipelineStage: log.pipelineStage,
-      notes: log.notes,
-      isOverdue: log.followupDate < today,
-      isToday: log.followupDate === today,
-    }));
+    const callbackLogs = await callbackQb.getMany();
+    for (const log of callbackLogs) {
+      const isOverdue = log.followupDate < today;
+      const isToday   = log.followupDate === today;
+      items.push({
+        id: log.id,
+        candidateId: log.candidateId,
+        candidate: log.candidate,
+        pipelineStage: log.pipelineStage,
+        itemType: 'callback',
+        actionLabel: isOverdue ? 'Overdue callback — call now!' : isToday ? 'Call back today' : 'Upcoming callback',
+        priority: isOverdue ? 2 : isToday ? 3 : 4,
+        followupDate: log.followupDate,
+        followupTime: (log as any).followupTime,
+        notes: log.notes,
+        isOverdue,
+        isToday,
+      });
+    }
+
+    // Sort by priority then by date
+    items.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      const dateA = a.followupDate || a.interviewDate || '';
+      const dateB = b.followupDate || b.interviewDate || '';
+      return dateA.localeCompare(dateB);
+    });
+
+    return items;
+  }
+
+  /** Intern flags reschedule needed — ops will see this in their pipeline */
+  async requestReschedule(logId: string, userId: number, enrollmentId: string, reason: string) {
+    await this.verifyOwnership(enrollmentId, userId);
+    const log = await this.logRepo.findOne({ where: { id: logId, enrollmentId } });
+    if (!log) throw new Error('Log not found');
+    (log as any).rescheduleRequested = true;
+    (log as any).rescheduleReason = reason;
+    await this.logRepo.save(log);
+    return { success: true };
   }
 
   /**

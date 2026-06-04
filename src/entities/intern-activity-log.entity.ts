@@ -190,6 +190,22 @@ export class InternActivityLog {
   @Column({ type: 'text', nullable: true })
   opsNotes: string;
 
+  // ── Interview round tracking ──────────────────────────────────────────────
+  @Column({ type: 'int', nullable: true })
+  interviewRound: number;          // 1, 2, 3 … (set by ops when scheduling)
+
+  @Column({ nullable: true })
+  interviewLink: string;           // video/meeting link for online interviews
+
+  @Column({ default: false })
+  rescheduleRequested: boolean;    // intern flagged: candidate can't make the time
+
+  @Column({ type: 'text', nullable: true })
+  rescheduleReason: string;        // why the reschedule is needed
+
+  @Column({ nullable: true })
+  linkedIn: string;                // LinkedIn URL captured during call
+
   @CreateDateColumn()
   createdAt: Date;
 

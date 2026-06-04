@@ -90,28 +90,101 @@ export class OperationsService {
 
   async scheduleInterview(logId: string, dto: {
     interviewDate: string; interviewTime?: string;
-    clientName: string; interviewMode: string; interviewLocation?: string;
-    opsNotes?: string; round?: 'r1' | 'r2' | 'final';
+    clientName: string; interviewMode: string;
+    interviewLocation?: string; interviewLink?: string;
+    opsNotes?: string; roundNumber?: number;
   }) {
     const log = await this.logRepo.findOne({ where: { id: logId } });
     if (!log) throw new NotFoundException('Log not found');
 
-    const stageMap: Record<string, PipelineStage> = {
-      r1:    PipelineStage.INTERVIEW_R1,
-      r2:    PipelineStage.INTERVIEW_R2,
-      final: PipelineStage.FINAL_ROUND,
+    const round = dto.roundNumber ?? 1;
+    const stageByRound = (r: number): PipelineStage => {
+      if (r === 1) return PipelineStage.INTERVIEW_R1;
+      if (r === 2) return PipelineStage.INTERVIEW_R2;
+      return PipelineStage.FINAL_ROUND;
     };
 
-    log.interviewDate = dto.interviewDate;
-    log.interviewTime = dto.interviewTime ?? log.interviewTime;
-    log.clientName = dto.clientName;
-    log.interviewMode = dto.interviewMode;
-    log.interviewLocation = dto.interviewLocation ?? log.interviewLocation;
-    log.opsNotes = dto.opsNotes ?? log.opsNotes;
+    log.interviewDate      = dto.interviewDate;
+    log.interviewTime      = dto.interviewTime      ?? log.interviewTime;
+    log.clientName         = dto.clientName;
+    log.interviewMode      = dto.interviewMode;
+    log.interviewLocation  = dto.interviewLocation  ?? log.interviewLocation;
+    log.interviewLink      = dto.interviewLink       ?? log.interviewLink;
+    log.opsNotes           = dto.opsNotes           ?? log.opsNotes;
     log.interviewScheduled = true;
-    log.pipelineStage = stageMap[dto.round ?? 'r1'] ?? PipelineStage.INTERVIEW_R1;
+    log.interviewRound     = round;
+    log.pipelineStage      = stageByRound(round);
+    log.rescheduleRequested = false;  // clear any pending reschedule request
+    log.rescheduleReason   = null as any;
 
     await this.logRepo.save(log);
+    return this.formatLog(log);
+  }
+
+  /**
+   * Ops marks result for a completed interview round.
+   * - pass: candidate cleared this round → ops can schedule next or mark selected
+   * - fail / dna: candidate failed or did not attend → move to interview_failed
+   * - next_round: schedule the next interview round in one shot
+   */
+  async markRoundResult(logId: string, dto: {
+    result: 'pass' | 'fail' | 'dna';
+    clientFeedback?: string; opsNotes?: string;
+    // If result=pass and ops wants to schedule next round immediately:
+    nextRound?: { roundNumber: number; interviewDate: string; interviewTime?: string;
+                  clientName: string; interviewMode: string;
+                  interviewLocation?: string; interviewLink?: string; };
+    // If result=pass and candidate is selected:
+    selectedDirectly?: boolean;
+    expectedJoiningDate?: string;
+  }) {
+    const log = await this.logRepo.findOne({ where: { id: logId } });
+    if (!log) throw new NotFoundException('Log not found');
+
+    if (dto.result === 'fail' || dto.result === 'dna') {
+      log.pipelineStage  = PipelineStage.INTERVIEW_FAILED;
+      log.clientFeedback = dto.clientFeedback ?? log.clientFeedback;
+      log.opsNotes       = dto.opsNotes       ?? log.opsNotes;
+    } else if (dto.result === 'pass') {
+      if (dto.selectedDirectly) {
+        log.pipelineStage = PipelineStage.SELECTED;
+        if (dto.expectedJoiningDate) (log as any).expectedJoiningDate = dto.expectedJoiningDate;
+      } else if (dto.nextRound) {
+        const nr = dto.nextRound;
+        const stageByRound = (r: number): PipelineStage => {
+          if (r === 1) return PipelineStage.INTERVIEW_R1;
+          if (r === 2) return PipelineStage.INTERVIEW_R2;
+          return PipelineStage.FINAL_ROUND;
+        };
+        log.interviewDate      = nr.interviewDate;
+        log.interviewTime      = nr.interviewTime      ?? log.interviewTime;
+        log.clientName         = nr.clientName;
+        log.interviewMode      = nr.interviewMode;
+        log.interviewLocation  = nr.interviewLocation  ?? log.interviewLocation;
+        log.interviewLink      = nr.interviewLink       ?? null as any;
+        log.interviewRound     = nr.roundNumber;
+        log.pipelineStage      = stageByRound(nr.roundNumber);
+        log.rescheduleRequested = false;
+        log.rescheduleReason   = null as any;
+      }
+      // if pass but no next round / selected → stays at current stage, ops decides later
+      log.clientFeedback = dto.clientFeedback ?? log.clientFeedback;
+      log.opsNotes       = dto.opsNotes       ?? log.opsNotes;
+    }
+
+    await this.logRepo.save(log);
+
+    // If failed → release candidate back to talent pool
+    if (dto.result === 'fail' || dto.result === 'dna') {
+      if (log.candidateId) {
+        await this.candidateRepo.update(log.candidateId, {
+          status: 'talent_pool',
+          lockedByEnrollmentId: null as any,
+          lockedAt: null as any,
+        });
+      }
+    }
+
     return this.formatLog(log);
   }
 
@@ -273,11 +346,15 @@ export class OperationsService {
       updatedAt: l.updatedAt,
       cvUrl: l.cvUrl,
       linkedIn: (l as any).linkedIn,
+      interviewRound: l.interviewRound,
       interviewDate: l.interviewDate,
       interviewTime: (l as any).interviewTime,
+      interviewLink: l.interviewLink,
       clientName: l.clientName,
       interviewMode: l.interviewMode,
       interviewLocation: l.interviewLocation,
+      rescheduleRequested: l.rescheduleRequested,
+      rescheduleReason: l.rescheduleReason,
       clientFeedback: l.clientFeedback,
       opsNotes: l.opsNotes,
       interviewScheduled: l.interviewScheduled,

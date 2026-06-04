@@ -54,11 +54,29 @@ export class OperationsController {
     @Body() body: {
       interviewDate: string; interviewTime?: string;
       clientName: string; interviewMode: string;
-      interviewLocation?: string; opsNotes?: string;
-      round?: 'r1' | 'r2' | 'final';
+      interviewLocation?: string; interviewLink?: string;
+      opsNotes?: string; roundNumber?: number;
     },
   ) {
     return this.svc.scheduleInterview(logId, body);
+  }
+
+  @Patch('pipeline/:logId/round-result')
+  @ApiOperation({ summary: 'Mark result for a completed interview round (pass/fail/dna)' })
+  markRoundResult(
+    @Param('logId') logId: string,
+    @Body() body: {
+      result: 'pass' | 'fail' | 'dna';
+      clientFeedback?: string; opsNotes?: string;
+      selectedDirectly?: boolean; expectedJoiningDate?: string;
+      nextRound?: {
+        roundNumber: number; interviewDate: string; interviewTime?: string;
+        clientName: string; interviewMode: string;
+        interviewLocation?: string; interviewLink?: string;
+      };
+    },
+  ) {
+    return this.svc.markRoundResult(logId, body);
   }
 
   @Patch('pipeline/:logId/outcome')

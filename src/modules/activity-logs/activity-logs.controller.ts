@@ -102,6 +102,17 @@ export class ActivityLogsController {
     return this.activityLogsService.upsertLog(user.id, body);
   }
 
+  /** Intern flags that the candidate can't make the scheduled interview time */
+  @Patch(':id/reschedule-request')
+  requestReschedule(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @Body('enrollmentId') enrollmentId: string,
+  ) {
+    return this.activityLogsService.requestReschedule(id, user.id, enrollmentId, reason);
+  }
+
   /** Admin: Cross-intern performance leaderboard */
   @Get('admin/leaderboard')
   @UseGuards(RolesGuard)
