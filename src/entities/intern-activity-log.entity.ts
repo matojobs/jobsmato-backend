@@ -98,6 +98,15 @@ export class InternActivityLog {
   joiningDate: string;
 
   @Column({ type: 'date', nullable: true })
+  expectedJoiningDate: string;   // set by intern after selection — when candidate says they'll join
+
+  @Column({ type: 'date', nullable: true })
+  backoutDate: string;           // when candidate backed out after accepting
+
+  @Column({ type: 'text', nullable: true })
+  backoutReason: string;         // why candidate backed out
+
+  @Column({ type: 'date', nullable: true })
   followupDate: string;
 
   @Column({ nullable: true })
