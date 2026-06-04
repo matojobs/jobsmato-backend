@@ -11,9 +11,15 @@ export class OperationsController {
   constructor(private readonly svc: OperationsService) {}
 
   @Get('stats')
-  @ApiOperation({ summary: 'Operations dashboard stats' })
+  @ApiOperation({ summary: 'Operations dashboard stats (legacy)' })
   getStats() {
     return this.svc.getStats();
+  }
+
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Enhanced ops dashboard with action queue' })
+  getDashboard() {
+    return this.svc.getDashboardStats();
   }
 
   @Get('pipeline')
@@ -55,6 +61,7 @@ export class OperationsController {
     @Body() body: {
       outcome: 'selected' | 'client_rejected' | 'interview_failed' | 'offer_accepted' | 'joined';
       clientFeedback?: string; opsNotes?: string;
+      expectedJoiningDate?: string; joiningDate?: string;
     },
   ) {
     return this.svc.updateOutcome(logId, body);

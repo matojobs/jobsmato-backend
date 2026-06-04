@@ -98,6 +98,7 @@ export class OperationsService {
   async updateOutcome(logId: string, dto: {
     outcome: 'selected' | 'client_rejected' | 'interview_failed' | 'offer_accepted' | 'joined';
     clientFeedback?: string; opsNotes?: string;
+    expectedJoiningDate?: string; joiningDate?: string;
   }) {
     const log = await this.logRepo.findOne({ where: { id: logId } });
     if (!log) throw new NotFoundException('Log not found');
@@ -113,6 +114,8 @@ export class OperationsService {
     log.pipelineStage = stageMap[dto.outcome] ?? log.pipelineStage;
     log.clientFeedback = dto.clientFeedback ?? log.clientFeedback;
     log.opsNotes = dto.opsNotes ?? log.opsNotes;
+    if (dto.expectedJoiningDate) (log as any).expectedJoiningDate = dto.expectedJoiningDate;
+    if (dto.joiningDate) (log as any).joiningDate = dto.joiningDate;
 
     await this.logRepo.save(log);
 
@@ -174,6 +177,74 @@ export class OperationsService {
     };
   }
 
+  /** Enhanced stats for ops dashboard — adds today's interviews + action queue */
+  async getDashboardStats() {
+    const today = new Date().toISOString().split('T')[0];
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+
+    const [pendingSchedule, interviewsToday, pendingOutcome, selectedThisWeek, joinedTotal] = await Promise.all([
+      // Awaiting interview schedule (submitted or shortlisted, no interview date set)
+      this.logRepo.createQueryBuilder('l')
+        .where('l.pipelineStage IN (:...s)', { s: [PipelineStage.SUBMITTED, PipelineStage.SHORTLISTED] })
+        .getCount(),
+      // Interviews today
+      this.logRepo.createQueryBuilder('l')
+        .where('l.pipelineStage IN (:...s)', { s: [PipelineStage.INTERVIEW_R1, PipelineStage.INTERVIEW_R2, PipelineStage.FINAL_ROUND] })
+        .andWhere('l.interviewDate = :today', { today })
+        .getCount(),
+      // Interview done but outcome not set (past interview date, still in interview stage)
+      this.logRepo.createQueryBuilder('l')
+        .where('l.pipelineStage IN (:...s)', { s: [PipelineStage.INTERVIEW_R1, PipelineStage.INTERVIEW_R2, PipelineStage.FINAL_ROUND] })
+        .andWhere('l.interviewDate < :today', { today })
+        .getCount(),
+      this.logRepo.createQueryBuilder('l')
+        .where('l.pipelineStage = :s', { s: PipelineStage.SELECTED })
+        .andWhere('l.updatedAt >= :w', { w: weekStartStr })
+        .getCount(),
+      this.logRepo.count({ where: { pipelineStage: PipelineStage.JOINED } }),
+    ]);
+
+    // Today's interviews with candidate details
+    const todayInterviews = await this.logRepo.createQueryBuilder('log')
+      .leftJoinAndSelect('log.candidate', 'candidate')
+      .leftJoinAndSelect('log.enrollment', 'enrollment')
+      .leftJoinAndSelect('enrollment.user', 'user')
+      .where('log.pipelineStage IN (:...s)', { s: [PipelineStage.INTERVIEW_R1, PipelineStage.INTERVIEW_R2, PipelineStage.FINAL_ROUND] })
+      .andWhere('log.interviewDate = :today', { today })
+      .orderBy('log.interviewTime', 'ASC')
+      .getMany();
+
+    // Needs action: past interview date with no outcome
+    const needsOutcome = await this.logRepo.createQueryBuilder('log')
+      .leftJoinAndSelect('log.candidate', 'candidate')
+      .leftJoinAndSelect('log.enrollment', 'enrollment')
+      .leftJoinAndSelect('enrollment.user', 'user')
+      .where('log.pipelineStage IN (:...s)', { s: [PipelineStage.INTERVIEW_R1, PipelineStage.INTERVIEW_R2, PipelineStage.FINAL_ROUND] })
+      .andWhere('log.interviewDate < :today', { today })
+      .orderBy('log.interviewDate', 'ASC')
+      .take(10)
+      .getMany();
+
+    // New submissions awaiting review
+    const newSubmissions = await this.logRepo.createQueryBuilder('log')
+      .leftJoinAndSelect('log.candidate', 'candidate')
+      .leftJoinAndSelect('log.enrollment', 'enrollment')
+      .leftJoinAndSelect('enrollment.user', 'user')
+      .where('log.pipelineStage IN (:...s)', { s: [PipelineStage.SUBMITTED, PipelineStage.SHORTLISTED] })
+      .orderBy('log.updatedAt', 'DESC')
+      .take(10)
+      .getMany();
+
+    return {
+      kpis: { pendingSchedule, interviewsToday, pendingOutcome, selectedThisWeek, joinedTotal },
+      todayInterviews: todayInterviews.map(l => this.formatLog(l)),
+      needsOutcome: needsOutcome.map(l => this.formatLog(l)),
+      newSubmissions: newSubmissions.map(l => this.formatLog(l)),
+    };
+  }
+
   private formatLog(l: InternActivityLog) {
     return {
       id: l.id,
@@ -181,8 +252,9 @@ export class OperationsService {
       callDate: l.callDate,
       updatedAt: l.updatedAt,
       cvUrl: l.cvUrl,
+      linkedIn: (l as any).linkedIn,
       interviewDate: l.interviewDate,
-      interviewTime: l.interviewTime,
+      interviewTime: (l as any).interviewTime,
       clientName: l.clientName,
       interviewMode: l.interviewMode,
       interviewLocation: l.interviewLocation,
@@ -190,14 +262,22 @@ export class OperationsService {
       opsNotes: l.opsNotes,
       interviewScheduled: l.interviewScheduled,
       notes: l.notes,
+      expectedJoiningDate: (l as any).expectedJoiningDate,
+      joiningDate: (l as any).joiningDate,
       candidate: l.candidate ? {
         id: l.candidate.id,
         name: l.candidate.candidateName,
         phone: l.candidate.phone,
         jobRole: l.candidate.jobRole,
         companyName: l.candidate.companyName,
+        currentDesignation: l.candidate.currentDesignation,
+        currentCity: l.candidate.currentCity,
+        experience: l.candidate.experience,
+        currentCTC: l.candidate.currentCTC,
+        expectedCTC: l.candidate.expectedCTC,
+        skills: l.candidate.skills,
+        linkedIn: l.candidate.linkedIn,
         location: l.candidate.location,
-        experience: l.candidate.totalExperience,
       } : null,
       intern: l.enrollment?.user ? {
         id: l.enrollment.user.id,
