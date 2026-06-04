@@ -386,11 +386,13 @@ export class BatchTasksService {
     if (!task.jobId) return { jobLinked: false, cities: {} as Record<string, number> };
 
     const fill = await this.getJobFillRate(task.jobId);
+    const job = await this.jobRepo.findOne({ where: { id: task.jobId } });
     const cities: Record<string, number> = {};
     for (const c of fill.cities) cities[c.city] = c.remaining;
     return {
       jobLinked: true,
       jobId: task.jobId,
+      jdAvailable: !!(job as any)?.jdPath,
       cities,
       totalRemaining: fill.totalRemaining,
       totalOpenings: fill.totalOpenings,
