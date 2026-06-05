@@ -54,4 +54,10 @@ export class AnalyticsAdminController {
   byCompany(@Query() q: ScorecardQueryDto) {
     return this.analytics.getGroupedFunnel('company', { from: q.from, to: q.to });
   }
+
+  @Get('negative-funnel')
+  @ApiOperation({ summary: 'Reason breakdown: not interested, not attended, rejected, backed out' })
+  negativeFunnel(@Query() q: ScorecardQueryDto) {
+    return this.analytics.getNegativeFunnel({ from: q.from, to: q.to });
+  }
 }

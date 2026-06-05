@@ -262,6 +262,46 @@ export class AnalyticsService {
     });
   }
 
+  /**
+   * Negative-funnel reason breakdown for a range. Surfaces WHY candidates were
+   * lost at each drop-off: not interested, did not attend, rejected, backed out.
+   * Each reason type is anchored to its natural event date.
+   */
+  async getNegativeFunnel(filters: { from: string; to: string }) {
+    const { from, to } = filters;
+
+    const breakdown = async (reasonCol: string, whereExtra: string, anchor: string) => {
+      const rows = await this.dataSource.query(
+        `
+        SELECT COALESCE(NULLIF(TRIM(a.${reasonCol}), ''), '(blank)') AS reason, COUNT(*)::int AS count
+        FROM sourcing.applications a
+        WHERE ${whereExtra}
+          AND a.${anchor} BETWEEN $1::date AND $2::date
+        GROUP BY 1
+        ORDER BY count DESC
+        `,
+        [from, to],
+      );
+      const total = rows.reduce((s: number, r: any) => s + (+r.count || 0), 0);
+      return { reasons: rows, total };
+    };
+
+    const [notInterested, notAttended, rejection, backout] = await Promise.all([
+      breakdown('not_interested_remark', 'a.interested = 2', 'call_date'),
+      breakdown('not_attended_reason', "a.interview_status = 'Not Attended'", 'interview_date'),
+      breakdown('rejection_reason', "(a.interview_status = 'Rejected' OR a.selection_status = 2)", 'interview_date'),
+      breakdown('backout_reason', 'a.joining_status = 4', 'backout_date'),
+    ]);
+
+    return {
+      range: { from, to },
+      not_interested: notInterested,
+      not_attended: notAttended,
+      rejection,
+      backout,
+    };
+  }
+
   /** Per-recruiter scorecards for a range (Phase 2 leaderboard). */
   async getRecruiterScorecards(filters: Omit<FunnelFilters, 'recruiterId' | 'granularity'>) {
     const { from, to } = filters;
