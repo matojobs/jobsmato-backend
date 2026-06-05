@@ -1282,6 +1282,41 @@ export class RecruiterService {
       paramIndex++;
     }
 
+    // ── Event-date stamping (Phase 1 analytics) ──────────────────────────────
+    // Stamp the day each stage transition happens, set-once, in IST. Anchors
+    // every funnel metric to its real event date instead of updated_at.
+    const istToday = `(now() AT TIME ZONE 'Asia/Kolkata')::date`;
+
+    if (dto.call_status !== undefined && StatusMapper.callStatusToInt(dto.call_status) === 3) {
+      updates.push(`connected_date = COALESCE(connected_date, ${istToday})`);
+    }
+    if (dto.interested_status !== undefined && StatusMapper.interestedStatusToInt(dto.interested_status) != null) {
+      updates.push(`interested_date = COALESCE(interested_date, ${istToday})`);
+    }
+    if (dto.selection_status !== undefined) {
+      const selInt = StatusMapper.selectionStatusToInt(dto.selection_status);
+      if (selInt === 1) {
+        updates.push(`selection_date = COALESCE(selection_date, ${istToday})`);
+      } else if (selInt === 2) {
+        updates.push(`selection_date = COALESCE(selection_date, ${istToday})`);
+        updates.push(`rejection_date = COALESCE(rejection_date, ${istToday})`);
+      }
+    }
+    if (dto.interview_status !== undefined && dto.interview_status === 'Rejected') {
+      updates.push(`rejection_date = COALESCE(rejection_date, ${istToday})`);
+    }
+    // joining_date / backout_date are explicit fields already set by the UI; if a
+    // joined/backed-out status arrives without its date, stamp today as fallback.
+    if (dto.joining_status !== undefined) {
+      const joinInt = StatusMapper.joiningStatusToInt(dto.joining_status);
+      if (joinInt === 1 && dto.joining_date === undefined) {
+        updates.push(`joining_date = COALESCE(joining_date, ${istToday})`);
+      }
+      if (joinInt === 4 && dto.backout_date === undefined) {
+        updates.push(`backout_date = COALESCE(backout_date, ${istToday})`);
+      }
+    }
+
     if (updates.length === 0) {
       return this.getApplicationById(id, recruiterId);
     }

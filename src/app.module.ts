@@ -18,6 +18,7 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { EmailModule } from './modules/email/email.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FilesModule } from './modules/files/files.module';
 import { RecruiterModule } from './modules/recruiter/recruiter.module';
 import { CommonModule } from './common/common.module';
@@ -77,6 +78,7 @@ import { CandidateSignupModule } from './modules/candidate-signup/candidate-sign
     UploadModule,
     EmailModule,
     AdminModule,
+    AnalyticsModule,
     FilesModule,
 
     // Billing & payments
