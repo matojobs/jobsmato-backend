@@ -89,7 +89,14 @@ export class AnalyticsService {
         COUNT(*) FILTER (WHERE f.is_rejected  AND ${inRange('rejection_date')})       AS rejected,
         COUNT(*) FILTER (WHERE f.is_joined    AND ${inRange('joining_date')})         AS joined,
         COUNT(*) FILTER (WHERE f.is_backout   AND ${inRange('backout_date')})         AS backout,
-        COUNT(*) FILTER (WHERE f.is_yet_to_join)                                      AS yet_to_join
+        COUNT(*) FILTER (WHERE f.is_yet_to_join)                                      AS yet_to_join,
+        -- cohort numerators (same anchor as denominator → rates always <=100%)
+        COUNT(*) FILTER (WHERE ${inRange('call_date')}      AND f.is_connected)        AS coh_connect,
+        COUNT(*) FILTER (WHERE ${inRange('connected_date')} AND f.is_interested)       AS coh_interest,
+        COUNT(*) FILTER (WHERE ${inRange('interested_date')} AND f.is_interested AND f.is_interview_sched) AS coh_int,
+        COUNT(*) FILTER (WHERE f.is_interview_done AND ${inRange('interview_date')} AND f.is_selected) AS coh_int_sel,
+        COUNT(*) FILTER (WHERE f.is_selected AND ${inRange('selection_date')} AND f.is_joined)         AS coh_sel_join,
+        COUNT(*) FILTER (WHERE ${inRange('assigned_date')}  AND f.is_joined)           AS coh_src_join
       FROM sourcing.v_application_facts f
       WHERE 1=1 ${scopeSql}
     `;
@@ -111,13 +118,16 @@ export class AnalyticsService {
       yet_to_join: +r.yet_to_join || 0,
     };
 
+    // Cohort-based conversion rates (numerator shares the denominator's cohort
+    // anchor) so a bounded period can never produce >100% (e.g. selections this
+    // month whose interviews were last month no longer inflate the rate).
     const rates: FunnelRates = {
-      connect_rate: pct(totals.connected, totals.attempts),
-      interest_rate: pct(totals.interested, totals.connected),
-      interview_rate: pct(totals.interview_sched, totals.interested),
-      select_rate: pct(totals.selected, totals.interview_done),
-      join_rate: pct(totals.joined, totals.selected),
-      sourced_to_join: pct(totals.joined, totals.sourced),
+      connect_rate: pct(+r.coh_connect || 0, totals.attempts),
+      interest_rate: pct(+r.coh_interest || 0, totals.connected),
+      interview_rate: pct(+r.coh_int || 0, totals.interested),
+      select_rate: pct(+r.coh_int_sel || 0, totals.interview_done),
+      join_rate: pct(+r.coh_sel_join || 0, totals.selected),
+      sourced_to_join: pct(+r.coh_src_join || 0, totals.sourced),
     };
 
     const resp: FunnelResponse = { range: { from, to }, totals, rates };
@@ -210,7 +220,13 @@ export class AnalyticsService {
         COUNT(*) FILTER (WHERE f.is_selected  AND ${inRange('selection_date')})       AS selected,
         COUNT(*) FILTER (WHERE f.is_joined    AND ${inRange('joining_date')})         AS joined,
         COUNT(*) FILTER (WHERE f.is_backout   AND ${inRange('backout_date')})         AS backout,
-        COUNT(*) FILTER (WHERE f.is_yet_to_join)                                      AS yet_to_join
+        COUNT(*) FILTER (WHERE f.is_yet_to_join)                                      AS yet_to_join,
+        -- cohort numerators (same anchor as denominator → rates always <=100%)
+        COUNT(*) FILTER (WHERE ${inRange('call_date')}      AND f.is_connected)        AS coh_connect,
+        COUNT(*) FILTER (WHERE ${inRange('connected_date')} AND f.is_interested)       AS coh_interest,
+        COUNT(*) FILTER (WHERE f.is_interview_done AND ${inRange('interview_date')} AND f.is_selected) AS coh_int_sel,
+        COUNT(*) FILTER (WHERE f.is_selected AND ${inRange('selection_date')} AND f.is_joined)         AS coh_sel_join,
+        COUNT(*) FILTER (WHERE ${inRange('assigned_date')}  AND f.is_joined)           AS coh_src_join
       FROM sourcing.v_application_facts f
       WHERE ${groupCol} IS NOT NULL
       GROUP BY ${idCol}, ${groupCol}
@@ -236,11 +252,12 @@ export class AnalyticsService {
         selected, joined,
         backout: +r.backout || 0,
         yet_to_join: +r.yet_to_join || 0,
-        connect_rate: pct(connected, attempts),
-        interest_rate: pct(interested, connected),
-        interview_to_select: pct(selected, interviewDone),
-        select_to_join: pct(joined, selected),
-        sourced_to_join: pct(joined, sourced),
+        // cohort-based conversion rates (numerator shares denominator's cohort)
+        connect_rate: pct(+r.coh_connect || 0, attempts),
+        interest_rate: pct(+r.coh_interest || 0, connected),
+        interview_to_select: pct(+r.coh_int_sel || 0, interviewDone),
+        select_to_join: pct(+r.coh_sel_join || 0, selected),
+        sourced_to_join: pct(+r.coh_src_join || 0, sourced),
       };
     });
   }
@@ -266,7 +283,11 @@ export class AnalyticsService {
         COUNT(*) FILTER (WHERE f.is_interview_done  AND ${inRange('interview_date')}) AS interview_done,
         COUNT(*) FILTER (WHERE f.is_selected AND ${inRange('selection_date')})       AS selected,
         COUNT(*) FILTER (WHERE f.is_joined   AND ${inRange('joining_date')})         AS joined,
-        COUNT(DISTINCT f.call_date) FILTER (WHERE ${inRange('call_date')})           AS active_days
+        COUNT(DISTINCT f.call_date) FILTER (WHERE ${inRange('call_date')})           AS active_days,
+        COUNT(*) FILTER (WHERE ${inRange('call_date')}      AND f.is_connected)        AS coh_connect,
+        COUNT(*) FILTER (WHERE ${inRange('connected_date')} AND f.is_interested)       AS coh_interest,
+        COUNT(*) FILTER (WHERE f.is_interview_done AND ${inRange('interview_date')} AND f.is_selected) AS coh_int_sel,
+        COUNT(*) FILTER (WHERE f.is_selected AND ${inRange('selection_date')} AND f.is_joined)         AS coh_sel_join
       FROM sourcing.v_application_facts f
       WHERE 1=1 ${scopeSql}
       GROUP BY f.recruiter_id, f.recruiter_name
@@ -290,10 +311,10 @@ export class AnalyticsService {
         attempts, connected, interested, interview_sched: interviewSched,
         interview_done: interviewDone, selected, joined,
         active_days: activeDays,
-        connect_rate: pct(connected, attempts),
-        interest_rate: pct(interested, connected),
-        interview_to_select: pct(selected, interviewDone),
-        select_to_join: pct(joined, selected),
+        connect_rate: pct(+r.coh_connect || 0, attempts),
+        interest_rate: pct(+r.coh_interest || 0, connected),
+        interview_to_select: pct(+r.coh_int_sel || 0, interviewDone),
+        select_to_join: pct(+r.coh_sel_join || 0, selected),
         sourced_to_join: 0, // filled by caller if sourced needed
         avg_attempts_per_day: activeDays ? Math.round(attempts / activeDays) : 0,
       };
