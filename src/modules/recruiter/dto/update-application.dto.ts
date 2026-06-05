@@ -53,6 +53,11 @@ export class UpdateApplicationDto {
   @IsString()
   rejection_reason?: string | null;
 
+  @ApiPropertyOptional({ description: 'LinkedIn profile URL (optional)' })
+  @IsOptional()
+  @IsString()
+  linkedin?: string | null;
+
   @ApiPropertyOptional({ description: 'Whether an interview is scheduled' })
   @IsOptional()
   @IsBoolean()

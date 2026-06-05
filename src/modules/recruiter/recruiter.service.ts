@@ -644,6 +644,7 @@ export class RecruiterService {
         a.not_interested_remark,
         a.not_attended_reason,
         a.rejection_reason,
+        a.linkedin,
         a.interview_scheduled,
         a.interview_date,
         a.turnup,
@@ -836,6 +837,7 @@ export class RecruiterService {
         a.not_interested_remark,
         a.not_attended_reason,
         a.rejection_reason,
+        a.linkedin,
         a.interview_scheduled,
         a.interview_date,
         a.turnup,
@@ -1220,6 +1222,11 @@ export class RecruiterService {
     if (dto.rejection_reason !== undefined) {
       updates.push(`rejection_reason = $${paramIndex}`);
       params.push(dto.rejection_reason ?? null);
+      paramIndex++;
+    }
+    if (dto.linkedin !== undefined) {
+      updates.push(`linkedin = $${paramIndex}`);
+      params.push(dto.linkedin ?? null);
       paramIndex++;
     }
     if (dto.interview_scheduled !== undefined) {
@@ -1774,6 +1781,7 @@ export class RecruiterService {
       not_interested_remark: row.not_interested_remark ?? null,
       not_attended_reason: row.not_attended_reason ?? null,
       rejection_reason: row.rejection_reason ?? null,
+      linkedin: row.linkedin ?? null,
       interview_scheduled: row.interview_scheduled ?? undefined,
       interview_date: row.interview_date ? row.interview_date.toISOString?.().split('T')[0] ?? String(row.interview_date) : null,
       turnup: row.turnup ?? null,
