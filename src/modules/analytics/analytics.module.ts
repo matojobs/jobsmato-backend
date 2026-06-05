@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
+import { BillingService } from './billing.service';
 import { AnalyticsRecruiterController } from './analytics-recruiter.controller';
 import { AnalyticsAdminController } from './analytics-admin.controller';
+import { BillingAdminController } from './billing-admin.controller';
 import { AuthModule } from '../auth/auth.module';
 import { RecruiterModule } from '../recruiter/recruiter.module';
 import { RecruiterGuard } from '../recruiter/guards/recruiter.guard';
@@ -14,8 +16,8 @@ import { AdminGuard } from '../admin/guards/admin.guard';
  */
 @Module({
   imports: [AuthModule, RecruiterModule],
-  controllers: [AnalyticsRecruiterController, AnalyticsAdminController],
-  providers: [AnalyticsService, RecruiterGuard, AdminGuard],
-  exports: [AnalyticsService],
+  controllers: [AnalyticsRecruiterController, AnalyticsAdminController, BillingAdminController],
+  providers: [AnalyticsService, BillingService, RecruiterGuard, AdminGuard],
+  exports: [AnalyticsService, BillingService],
 })
 export class AnalyticsModule {}

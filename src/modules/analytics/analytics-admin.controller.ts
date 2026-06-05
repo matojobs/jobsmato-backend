@@ -42,4 +42,16 @@ export class AnalyticsAdminController {
       portal: q.portal,
     });
   }
+
+  @Get('by-portal')
+  @ApiOperation({ summary: 'One funnel per sourcing portal (portal quality)' })
+  byPortal(@Query() q: ScorecardQueryDto) {
+    return this.analytics.getGroupedFunnel('portal', { from: q.from, to: q.to });
+  }
+
+  @Get('by-company')
+  @ApiOperation({ summary: 'One funnel per company (company health)' })
+  byCompany(@Query() q: ScorecardQueryDto) {
+    return this.analytics.getGroupedFunnel('company', { from: q.from, to: q.to });
+  }
 }
