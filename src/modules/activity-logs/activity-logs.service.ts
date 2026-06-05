@@ -206,6 +206,38 @@ export class ActivityLogsService {
       });
     }
 
+    // ── Priority 5: no-date unreachable — candidates that fell off the queue ──
+    // These are no_response / follow_up / contacted with NO followupDate set.
+    // Interns who closed the modal without scheduling end up here.
+    // Mirror HRMS "Unreachable" section so they are never lost.
+    if (filter === 'all') {
+      const noDateLogs = await this.logRepo
+        .createQueryBuilder('log')
+        .leftJoinAndSelect('log.candidate', 'candidate')
+        .where('log.enrollmentId = :enrollmentId', { enrollmentId })
+        .andWhere('log.followupDate IS NULL')
+        .andWhere("log.pipelineStage IN ('no_response','follow_up','contacted')")
+        .orderBy('log.updatedAt', 'ASC')
+        .getMany();
+
+      for (const log of noDateLogs) {
+        items.push({
+          id: log.id,
+          candidateId: log.candidateId,
+          candidate: log.candidate,
+          pipelineStage: log.pipelineStage,
+          itemType: 'unreachable',
+          actionLabel: 'No follow-up scheduled — call or set a callback date',
+          priority: 5,
+          followupDate: null,
+          followupTime: null,
+          notes: log.notes,
+          isOverdue: false,
+          isToday: false,
+        });
+      }
+    }
+
     // Sort by priority then by date
     items.sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
