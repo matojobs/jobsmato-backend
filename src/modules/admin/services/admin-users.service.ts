@@ -187,6 +187,17 @@ export class AdminUsersService {
     };
   }
 
+  /** Admin sets a new password for a user (e.g. a recruiter who forgot theirs). */
+  async resetPassword(id: number, newPassword: string): Promise<{ success: boolean; message: string }> {
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters');
+    }
+    const user = await this.getUser(id);
+    user.password = await bcrypt.hash(newPassword, 12);
+    await this.userRepository.save(user);
+    return { success: true, message: 'Password updated successfully' };
+  }
+
   async deleteUser(id: number): Promise<{ success: boolean; message: string }> {
     const user = await this.getUser(id);
 

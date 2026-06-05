@@ -267,19 +267,27 @@ export class AnalyticsService {
    * lost at each drop-off: not interested, did not attend, rejected, backed out.
    * Each reason type is anchored to its natural event date.
    */
-  async getNegativeFunnel(filters: { from: string; to: string; recruiterId?: number }) {
-    const { from, to, recruiterId } = filters;
-    const recruiterFilter = recruiterId != null ? `AND a.recruiter_id = $3` : '';
-    const params = recruiterId != null ? [from, to, recruiterId] : [from, to];
+  async getNegativeFunnel(filters: { from: string; to: string; recruiterId?: number; companyId?: number }) {
+    const { from, to, recruiterId, companyId } = filters;
+    const params: any[] = [from, to];
+    let extra = '';
+    let join = '';
+    if (recruiterId != null) { params.push(recruiterId); extra += ` AND a.recruiter_id = $${params.length}`; }
+    if (companyId != null) {
+      params.push(companyId);
+      join = 'INNER JOIN sourcing.job_roles jr ON jr.id = a.job_role_id';
+      extra += ` AND jr.company_id = $${params.length}`;
+    }
 
     const breakdown = async (reasonCol: string, whereExtra: string, anchor: string) => {
       const rows = await this.dataSource.query(
         `
         SELECT COALESCE(NULLIF(TRIM(a.${reasonCol}), ''), '(blank)') AS reason, COUNT(*)::int AS count
         FROM sourcing.applications a
+        ${join}
         WHERE ${whereExtra}
           AND a.${anchor} BETWEEN $1::date AND $2::date
-          ${recruiterFilter}
+          ${extra}
         GROUP BY 1
         ORDER BY count DESC
         `,
@@ -340,6 +348,45 @@ export class AnalyticsService {
       return {
         recruiter_id: r.recruiter_id,
         recruiter_name: r.recruiter_name,
+        not_interested: ni, not_attended: na, rejected: rj, backout: bo,
+        total: ni + na + rj + bo,
+      };
+    });
+  }
+
+  /** Per-company negative-funnel summary: drop-off counts by type per company. */
+  async getNegativeFunnelByCompany(filters: { from: string; to: string }) {
+    const { from, to } = filters;
+    const rows = await this.dataSource.query(
+      `
+      SELECT
+        jr.company_id AS company_id, comp.name AS company_name,
+        COUNT(*) FILTER (WHERE a.interested = 2 AND a.call_date BETWEEN $1::date AND $2::date)            AS not_interested,
+        COUNT(*) FILTER (WHERE a.interview_status = 'Not Attended' AND a.interview_date BETWEEN $1::date AND $2::date) AS not_attended,
+        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND a.interview_date BETWEEN $1::date AND $2::date) AS rejected,
+        COUNT(*) FILTER (WHERE a.joining_status = 4 AND a.backout_date BETWEEN $1::date AND $2::date)     AS backout
+      FROM sourcing.applications a
+      INNER JOIN sourcing.job_roles jr ON jr.id = a.job_role_id
+      INNER JOIN companies comp ON comp.id = jr.company_id
+      GROUP BY jr.company_id, comp.name
+      HAVING COUNT(*) FILTER (WHERE a.interested = 2 AND a.call_date BETWEEN $1::date AND $2::date)
+           + COUNT(*) FILTER (WHERE a.interview_status = 'Not Attended' AND a.interview_date BETWEEN $1::date AND $2::date)
+           + COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND a.interview_date BETWEEN $1::date AND $2::date)
+           + COUNT(*) FILTER (WHERE a.joining_status = 4 AND a.backout_date BETWEEN $1::date AND $2::date) > 0
+      ORDER BY (
+        COUNT(*) FILTER (WHERE a.interested = 2 AND a.call_date BETWEEN $1::date AND $2::date)
+        + COUNT(*) FILTER (WHERE a.interview_status = 'Not Attended' AND a.interview_date BETWEEN $1::date AND $2::date)
+        + COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND a.interview_date BETWEEN $1::date AND $2::date)
+        + COUNT(*) FILTER (WHERE a.joining_status = 4 AND a.backout_date BETWEEN $1::date AND $2::date)
+      ) DESC
+      `,
+      [from, to],
+    );
+    return rows.map((r: any) => {
+      const ni = +r.not_interested || 0, na = +r.not_attended || 0, rj = +r.rejected || 0, bo = +r.backout || 0;
+      return {
+        company_id: r.company_id,
+        company_name: r.company_name,
         not_interested: ni, not_attended: na, rejected: rj, backout: bo,
         total: ni + na + rj + bo,
       };

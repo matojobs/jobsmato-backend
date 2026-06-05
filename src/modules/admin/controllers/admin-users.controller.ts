@@ -149,6 +149,12 @@ export class SuspendUserDto {
   duration?: number; // in days
 }
 
+export class ResetPasswordDto {
+  @ApiProperty({ example: 'NewPass@123', minLength: 6 })
+  @IsString()
+  password: string;
+}
+
 @ApiTags('admin-users')
 @Controller('admin/users')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -236,6 +242,23 @@ export class AdminUsersController {
       'Admin Panel', // You should get this from request
     );
 
+    return result;
+  }
+
+  @Post(':id/reset-password')
+  @AdminPermissions(AdminPermission.EDIT_USERS)
+  @UseGuards(AdminPermissionGuard)
+  @ApiOperation({ summary: 'Admin sets a new password for a user' })
+  @ApiParam({ name: 'id', type: Number })
+  async resetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: ResetPasswordDto,
+    @CurrentUser() admin: User,
+  ) {
+    const result = await this.adminUsersService.resetPassword(id, body.password);
+    await this.adminAuditService.logAction(
+      admin.id, 'update', 'user', id, `Reset password for user ${id}`, {}, '127.0.0.1', 'Admin Panel',
+    );
     return result;
   }
 
