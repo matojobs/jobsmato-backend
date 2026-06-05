@@ -13,6 +13,8 @@ export interface ApplicationResponse {
   call_status?: string | null;
   interested_status?: string | null;
   not_interested_remark?: string | null;
+  not_attended_reason?: string | null;
+  rejection_reason?: string | null;
   interview_scheduled?: boolean;
   interview_date?: string | null;
   turnup?: boolean | null;

@@ -43,6 +43,16 @@ export class UpdateApplicationDto {
   @IsString()
   not_interested_remark?: string | null;
 
+  @ApiPropertyOptional({ description: 'Reason interviewee did not attend' })
+  @IsOptional()
+  @IsString()
+  not_attended_reason?: string | null;
+
+  @ApiPropertyOptional({ description: 'Reason candidate was rejected in interview' })
+  @IsOptional()
+  @IsString()
+  rejection_reason?: string | null;
+
   @ApiPropertyOptional({ description: 'Whether an interview is scheduled' })
   @IsOptional()
   @IsBoolean()

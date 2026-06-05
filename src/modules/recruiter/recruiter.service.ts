@@ -642,6 +642,8 @@ export class RecruiterService {
         a.call_status,
         a.interested,
         a.not_interested_remark,
+        a.not_attended_reason,
+        a.rejection_reason,
         a.interview_scheduled,
         a.interview_date,
         a.turnup,
@@ -832,6 +834,8 @@ export class RecruiterService {
         a.call_status,
         a.interested,
         a.not_interested_remark,
+        a.not_attended_reason,
+        a.rejection_reason,
         a.interview_scheduled,
         a.interview_date,
         a.turnup,
@@ -1206,6 +1210,16 @@ export class RecruiterService {
     if (dto.not_interested_remark !== undefined) {
       updates.push(`not_interested_remark = $${paramIndex}`);
       params.push(dto.not_interested_remark ?? null);
+      paramIndex++;
+    }
+    if (dto.not_attended_reason !== undefined) {
+      updates.push(`not_attended_reason = $${paramIndex}`);
+      params.push(dto.not_attended_reason ?? null);
+      paramIndex++;
+    }
+    if (dto.rejection_reason !== undefined) {
+      updates.push(`rejection_reason = $${paramIndex}`);
+      params.push(dto.rejection_reason ?? null);
       paramIndex++;
     }
     if (dto.interview_scheduled !== undefined) {
@@ -1758,6 +1772,8 @@ export class RecruiterService {
       call_status: StatusMapper.callStatusToString(row.call_status),
       interested_status: StatusMapper.interestedStatusToString(row.interested),
       not_interested_remark: row.not_interested_remark ?? null,
+      not_attended_reason: row.not_attended_reason ?? null,
+      rejection_reason: row.rejection_reason ?? null,
       interview_scheduled: row.interview_scheduled ?? undefined,
       interview_date: row.interview_date ? row.interview_date.toISOString?.().split('T')[0] ?? String(row.interview_date) : null,
       turnup: row.turnup ?? null,
