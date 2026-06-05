@@ -57,7 +57,13 @@ export class AnalyticsAdminController {
 
   @Get('negative-funnel')
   @ApiOperation({ summary: 'Reason breakdown: not interested, not attended, rejected, backed out' })
-  negativeFunnel(@Query() q: ScorecardQueryDto) {
-    return this.analytics.getNegativeFunnel({ from: q.from, to: q.to });
+  negativeFunnel(@Query() q: FunnelQueryDto) {
+    return this.analytics.getNegativeFunnel({ from: q.from, to: q.to, recruiterId: q.recruiter_id });
+  }
+
+  @Get('negative-funnel/by-recruiter')
+  @ApiOperation({ summary: 'Per-recruiter drop-off counts by type' })
+  negativeFunnelByRecruiter(@Query() q: ScorecardQueryDto) {
+    return this.analytics.getNegativeFunnelByRecruiter({ from: q.from, to: q.to });
   }
 }

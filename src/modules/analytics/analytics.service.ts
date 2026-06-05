@@ -267,8 +267,10 @@ export class AnalyticsService {
    * lost at each drop-off: not interested, did not attend, rejected, backed out.
    * Each reason type is anchored to its natural event date.
    */
-  async getNegativeFunnel(filters: { from: string; to: string }) {
-    const { from, to } = filters;
+  async getNegativeFunnel(filters: { from: string; to: string; recruiterId?: number }) {
+    const { from, to, recruiterId } = filters;
+    const recruiterFilter = recruiterId != null ? `AND a.recruiter_id = $3` : '';
+    const params = recruiterId != null ? [from, to, recruiterId] : [from, to];
 
     const breakdown = async (reasonCol: string, whereExtra: string, anchor: string) => {
       const rows = await this.dataSource.query(
@@ -277,10 +279,11 @@ export class AnalyticsService {
         FROM sourcing.applications a
         WHERE ${whereExtra}
           AND a.${anchor} BETWEEN $1::date AND $2::date
+          ${recruiterFilter}
         GROUP BY 1
         ORDER BY count DESC
         `,
-        [from, to],
+        params,
       );
       const total = rows.reduce((s: number, r: any) => s + (+r.count || 0), 0);
       return { reasons: rows, total };
@@ -300,6 +303,47 @@ export class AnalyticsService {
       rejection,
       backout,
     };
+  }
+
+  /**
+   * Per-recruiter negative-funnel summary: each recruiter's drop-off counts by
+   * type for a range. Shows who is losing candidates where.
+   */
+  async getNegativeFunnelByRecruiter(filters: { from: string; to: string }) {
+    const { from, to } = filters;
+    const rows = await this.dataSource.query(
+      `
+      SELECT
+        a.recruiter_id, r.name AS recruiter_name,
+        COUNT(*) FILTER (WHERE a.interested = 2 AND a.call_date BETWEEN $1::date AND $2::date)            AS not_interested,
+        COUNT(*) FILTER (WHERE a.interview_status = 'Not Attended' AND a.interview_date BETWEEN $1::date AND $2::date) AS not_attended,
+        COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND a.interview_date BETWEEN $1::date AND $2::date) AS rejected,
+        COUNT(*) FILTER (WHERE a.joining_status = 4 AND a.backout_date BETWEEN $1::date AND $2::date)     AS backout
+      FROM sourcing.applications a
+      INNER JOIN sourcing.recruiters r ON r.id = a.recruiter_id
+      GROUP BY a.recruiter_id, r.name
+      HAVING COUNT(*) FILTER (WHERE a.interested = 2 AND a.call_date BETWEEN $1::date AND $2::date)
+           + COUNT(*) FILTER (WHERE a.interview_status = 'Not Attended' AND a.interview_date BETWEEN $1::date AND $2::date)
+           + COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND a.interview_date BETWEEN $1::date AND $2::date)
+           + COUNT(*) FILTER (WHERE a.joining_status = 4 AND a.backout_date BETWEEN $1::date AND $2::date) > 0
+      ORDER BY (
+        COUNT(*) FILTER (WHERE a.interested = 2 AND a.call_date BETWEEN $1::date AND $2::date)
+        + COUNT(*) FILTER (WHERE a.interview_status = 'Not Attended' AND a.interview_date BETWEEN $1::date AND $2::date)
+        + COUNT(*) FILTER (WHERE (a.interview_status = 'Rejected' OR a.selection_status = 2) AND a.interview_date BETWEEN $1::date AND $2::date)
+        + COUNT(*) FILTER (WHERE a.joining_status = 4 AND a.backout_date BETWEEN $1::date AND $2::date)
+      ) DESC
+      `,
+      [from, to],
+    );
+    return rows.map((r: any) => {
+      const ni = +r.not_interested || 0, na = +r.not_attended || 0, rj = +r.rejected || 0, bo = +r.backout || 0;
+      return {
+        recruiter_id: r.recruiter_id,
+        recruiter_name: r.recruiter_name,
+        not_interested: ni, not_attended: na, rejected: rj, backout: bo,
+        total: ni + na + rj + bo,
+      };
+    });
   }
 
   /** Per-recruiter scorecards for a range (Phase 2 leaderboard). */
