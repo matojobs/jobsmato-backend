@@ -178,7 +178,7 @@ export class ActivityLogsService {
       .leftJoinAndSelect('log.candidate', 'candidate')
       .where('log.enrollmentId = :enrollmentId', { enrollmentId })
       .andWhere('log.followupDate IS NOT NULL')
-      .andWhere("log.pipelineStage IN ('follow_up','no_response','contacted')")
+      .andWhere("log.pipelineStage IN ('follow_up','no_response','contacted','offer_accepted')")
       .orderBy('log.followupDate', 'ASC')
       .addOrderBy('log.followupTime', 'ASC');
 
@@ -190,16 +190,20 @@ export class ActivityLogsService {
     for (const log of callbackLogs) {
       const isOverdue = log.followupDate < today;
       const isToday   = log.followupDate === today;
+      const isJoining = log.pipelineStage === 'offer_accepted';
       items.push({
         id: log.id,
         candidateId: log.candidateId,
         candidate: log.candidate,
         pipelineStage: log.pipelineStage,
-        itemType: 'callback',
-        actionLabel: isOverdue ? 'Overdue callback — call now!' : isToday ? 'Call back today' : 'Upcoming callback',
+        itemType: isJoining ? 'joining_followup' : 'callback',
+        actionLabel: isJoining
+          ? (isOverdue ? 'Joining date passed — confirm if joined' : isToday ? 'Expected to join today — confirm' : 'Upcoming joining — stay in touch')
+          : (isOverdue ? 'Overdue callback — call now!' : isToday ? 'Call back today' : 'Upcoming callback'),
         priority: isOverdue ? 2 : isToday ? 3 : 4,
         followupDate: log.followupDate,
         followupTime: (log as any).followupTime,
+        expectedJoiningDate: (log as any).expectedJoiningDate,
         notes: log.notes,
         isOverdue,
         isToday,
@@ -216,21 +220,25 @@ export class ActivityLogsService {
         .leftJoinAndSelect('log.candidate', 'candidate')
         .where('log.enrollmentId = :enrollmentId', { enrollmentId })
         .andWhere('log.followupDate IS NULL')
-        .andWhere("log.pipelineStage IN ('no_response','follow_up','contacted')")
+        .andWhere("log.pipelineStage IN ('no_response','follow_up','contacted','offer_accepted')")
         .orderBy('log.updatedAt', 'ASC')
         .getMany();
 
       for (const log of noDateLogs) {
+        const isJoining = log.pipelineStage === 'offer_accepted';
         items.push({
           id: log.id,
           candidateId: log.candidateId,
           candidate: log.candidate,
           pipelineStage: log.pipelineStage,
-          itemType: 'unreachable',
-          actionLabel: 'No follow-up scheduled — call or set a callback date',
+          itemType: isJoining ? 'joining_followup' : 'unreachable',
+          actionLabel: isJoining
+            ? 'Selected — set expected joining date & track joining'
+            : 'No follow-up scheduled — call or set a callback date',
           priority: 5,
           followupDate: null,
           followupTime: null,
+          expectedJoiningDate: (log as any).expectedJoiningDate,
           notes: log.notes,
           isOverdue: false,
           isToday: false,
