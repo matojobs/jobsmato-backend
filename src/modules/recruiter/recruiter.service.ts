@@ -1094,10 +1094,10 @@ export class RecruiterService {
       const appInsert = await manager.query(
         `INSERT INTO sourcing.applications (
           candidate_id, recruiter_id, job_role_id, assigned_date, call_date,
-          call_status, interested, selection_status, joining_status, notes,
+          call_status, interested, selection_status, joining_status, notes, portal,
           created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         RETURNING id`,
         [
           candidateId,
@@ -1110,6 +1110,7 @@ export class RecruiterService {
           selectionInt,
           joiningInt,
           applicationDto.notes || null,
+          applicationDto.portal || null,
         ],
       );
 

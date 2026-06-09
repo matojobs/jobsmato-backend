@@ -8,7 +8,7 @@ import { CALL_STATUS_OPTIONS } from '../enums/status.enum';
 /**
  * Application payload for POST /recruiter/applications/with-candidate.
  * Same as CreateApplicationDto except: candidate_id is optional (ignored; backend uses new candidate),
- * and portal is allowed (ignored for sourcing; avoids "property should not exist" when frontend sends it).
+ * and portal is allowed and stored on the sourcing application.
  */
 export class ApplicationPayloadForWithCandidateDto {
   @ApiPropertyOptional({ description: 'Ignored; backend uses the newly created candidate ID', example: 0 })
@@ -70,7 +70,7 @@ export class ApplicationPayloadForWithCandidateDto {
   @IsString()
   notes?: string;
 
-  @ApiPropertyOptional({ description: 'Source portal (e.g. Naukri, LinkedIn); accepted but not stored for sourcing' })
+  @ApiPropertyOptional({ description: 'Source portal (e.g. Naukri, LinkedIn); stored on the sourcing application' })
   @IsOptional()
   @IsString()
   portal?: string;
@@ -80,7 +80,7 @@ export class ApplicationPayloadForWithCandidateDto {
  * Combined DTO for creating a candidate and sourcing application in one API.
  *
  * - `candidate` uses the existing CreateCandidateDto (snake_case fields).
- * - `application` uses ApplicationPayloadForWithCandidateDto: candidate_id and portal are optional/ignored.
+ * - `application` uses ApplicationPayloadForWithCandidateDto: candidate_id is optional/ignored; portal is stored.
  */
 export class CreateApplicationWithCandidateDto {
   @ApiProperty({ type: CreateCandidateDto })
@@ -91,7 +91,7 @@ export class CreateApplicationWithCandidateDto {
   @ApiProperty({
     type: ApplicationPayloadForWithCandidateDto,
     description:
-      'Application payload. candidate_id and portal are optional and ignored; backend uses the newly created candidate.',
+      'Application payload. candidate_id is optional and ignored (backend uses the newly created candidate); portal is stored.',
   })
   @ValidateNested()
   @Type(() => ApplicationPayloadForWithCandidateDto)
