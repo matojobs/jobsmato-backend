@@ -1,5 +1,7 @@
-import { IsString, IsNumber, IsOptional, IsEmail, IsDateString } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEmail, IsDateString, Matches } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { normalizeIndianPhone } from '../../../common/utils/phone.util';
 
 /**
  * DTO for creating candidate
@@ -10,8 +12,12 @@ export class CreateCandidateDto {
   @IsString()
   candidate_name: string;
 
-  @ApiProperty({ description: 'Phone number', example: '+91 9876543210' })
+  @ApiProperty({ description: 'Phone number (normalized to a 10-digit Indian mobile)', example: '9876543210' })
   @IsString()
+  // Clean common dirty inputs (+91 / 0 prefix, spaces) before validation; keep
+  // the raw digits if it can't be safely recovered so @Matches reports the error.
+  @Transform(({ value }) => normalizeIndianPhone(value) ?? (value == null ? value : String(value).replace(/[^0-9]/g, '')))
+  @Matches(/^[6-9]\d{9}$/, { message: 'phone must be a valid 10-digit Indian mobile number (starting 6-9)' })
   phone: string;
 
   @ApiPropertyOptional({ description: 'Email', example: 'john@example.com' })
