@@ -322,7 +322,7 @@ export class JobSearchDto {
   })
   @IsNumber()
   @Min(1)
-  @Max(100)
+  @Max(500)
   limit?: number;
 
   @ApiProperty({ example: 'createdAt', required: false })
