@@ -29,6 +29,14 @@ export class JobsService {
     private companiesService: CompaniesService,
   ) {}
 
+  /** Recruiters are exempt from the per-employer active-job limit. */
+  private async isRecruiter(userId: number): Promise<boolean> {
+    const user = await this.jobRepository.manager
+      .getRepository(User)
+      .findOne({ where: { id: userId }, select: ['id', 'role'] });
+    return user?.role === UserRole.RECRUITER;
+  }
+
   async create(createJobDto: CreateJobDto, userId: number): Promise<JobResponseDto> {
     const companyIds = await this.companiesService.getCompanyIdsForUser(userId);
     if (!companyIds.length) {
@@ -48,7 +56,8 @@ export class JobsService {
       throw new ForbiddenException('Company not found');
     }
 
-    // Check active job limit (max 10 active jobs per employer)
+    // Check active job limit (max 10 active jobs per employer). Recruiters are
+    // exempt — they manage hiring across many companies and post in bulk.
     const activeJobsCount = await this.jobRepository.count({
       where: {
         companyId: company.id,
@@ -56,7 +65,7 @@ export class JobsService {
       },
     });
 
-    if (activeJobsCount >= 10) {
+    if (activeJobsCount >= 10 && !(await this.isRecruiter(userId))) {
       throw new BadRequestException('Maximum 10 active jobs allowed. Please pause or close an existing job before creating a new one.');
     }
 
@@ -250,7 +259,7 @@ export class JobsService {
         },
       });
 
-      if (activeJobsCount >= 10) {
+      if (activeJobsCount >= 10 && !(await this.isRecruiter(userId))) {
         throw new BadRequestException('Maximum 10 active jobs allowed. Please pause or close another job first.');
       }
     }
