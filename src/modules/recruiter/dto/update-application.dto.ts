@@ -1,4 +1,4 @@
-import { IsString, IsDateString, IsOptional, IsIn, IsBoolean } from 'class-validator';
+import { IsString, IsDateString, IsOptional, IsIn, IsBoolean, IsInt, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CALL_STATUS_OPTIONS } from '../enums/status.enum';
 
@@ -7,6 +7,12 @@ import { CALL_STATUS_OPTIONS } from '../enums/status.enum';
  * Field names match frontend spec EXACTLY (snake_case). All fields optional for partial update.
  */
 export class UpdateApplicationDto {
+  @ApiPropertyOptional({ description: 'Job role ID (changes company/role assignment)' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  job_role_id?: number;
+
   @ApiPropertyOptional({ description: 'Source portal (e.g. Naukri, LinkedIn, WorkIndia)' })
   @IsOptional()
   @IsString()

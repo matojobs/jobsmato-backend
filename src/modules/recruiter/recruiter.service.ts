@@ -1181,6 +1181,11 @@ export class RecruiterService {
     const params: any[] = [];
     let paramIndex = 1;
 
+    if (dto.job_role_id !== undefined) {
+      updates.push(`job_role_id = $${paramIndex}`);
+      params.push(dto.job_role_id);
+      paramIndex++;
+    }
     if (dto.portal !== undefined) {
       updates.push(`portal = $${paramIndex}`);
       params.push(dto.portal ?? null);
