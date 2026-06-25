@@ -106,6 +106,9 @@ services:
       # For private_key, replace actual newlines with \n
       GOOGLE_DRIVE_CLIENT_EMAIL: ""
       GOOGLE_DRIVE_PRIVATE_KEY: ""
+    volumes:
+      # Persist locally-stored uploads (resumes, etc.) across redeploys
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,6 +141,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  uploads_data:
     driver: local
 
 networks:

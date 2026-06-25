@@ -7,15 +7,21 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
   ParseIntPipe,
   HttpCode,
   HttpStatus,
   UsePipes,
   ValidationPipe,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { RecruiterService } from './recruiter.service';
+import { LocalUploadService } from '../upload/local-upload.service';
 import { CreateApplicationDto } from './dto/create-application.dto';
 import { UpdateApplicationDto } from './dto/update-application.dto';
 import { CreateCandidateDto } from './dto/create-candidate.dto';
@@ -33,7 +39,53 @@ import { User } from '../../entities/user.entity';
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
 @ApiBearerAuth()
 export class RecruiterController {
-  constructor(private readonly recruiterService: RecruiterService) {}
+  constructor(
+    private readonly recruiterService: RecruiterService,
+    private readonly localUploadService: LocalUploadService,
+  ) {}
+
+  // ============================================
+  // RESUME / CV UPLOAD (stored on our server)
+  // ============================================
+
+  /** Ideal resume size cap — 5 MB covers PDF/DOC/DOCX comfortably. */
+  private static readonly RESUME_MAX_BYTES = 5 * 1024 * 1024;
+
+  @Post('upload/resume')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: RecruiterController.RESUME_MAX_BYTES },
+    }),
+  )
+  @ApiOperation({ summary: 'Upload a candidate resume/CV (saved on our server)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: 201, description: 'Resume uploaded; returns the file URL' })
+  @ApiResponse({ status: 400, description: 'Invalid file type or no file' })
+  async uploadResume(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ): Promise<{ url: string; fileName: string; size: number }> {
+    if (!file) {
+      throw new BadRequestException('No file provided');
+    }
+    const allowed = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    if (!allowed.includes(file.mimetype)) {
+      throw new BadRequestException('Only PDF, DOC, and DOCX files are allowed for resumes');
+    }
+
+    const result = await this.localUploadService.uploadFile(file, 'sourcing-resumes');
+    // Build an absolute URL so the link works from the HRMS frontend.
+    const origin = `${req.protocol}://${req.get('host')}`;
+    return {
+      url: `${origin}${result.fileUrl}`,
+      fileName: result.fileName,
+      size: result.size,
+    };
+  }
 
   /**
    * Helper method to get recruiter ID from user

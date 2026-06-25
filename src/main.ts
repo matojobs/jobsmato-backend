@@ -1,13 +1,19 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Serve locally-stored uploads (resumes, etc.) at /uploads/** .
+  // Not under the global 'api' prefix — that only applies to controller routes.
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
 
   // Trust proxy (Nginx/Cloudflare) so redirects and URL building use correct protocol/host
   const expressApp = app.getHttpAdapter().getInstance();
