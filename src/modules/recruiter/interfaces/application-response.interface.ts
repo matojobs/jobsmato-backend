@@ -28,6 +28,9 @@ export interface ApplicationResponse {
   backout_reason?: string | null;
   hiring_manager_feedback?: string | null;
   followup_date?: string | null;
+  resume_status?: string | null;
+  resume_link?: string | null;
+  resume_followup_date?: string | null;
   notes?: string | null;
   created_at: string;
   updated_at: string;
@@ -45,6 +48,7 @@ export interface CandidateResponse {
   email?: string | null;
   qualification?: string | null;
   work_exp_years?: number | null;
+  location?: string | null;
   portal_id?: number | null;
   /** Age in full years (preferred by frontend). */
   age?: number | null;

@@ -133,6 +133,29 @@ export class UpdateApplicationDto {
   @IsDateString()
   followup_date?: string | null;
 
+  @ApiPropertyOptional({ description: 'Candidate location / city (stored on the candidate)' })
+  @IsOptional()
+  @IsString()
+  location?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Resume/CV status, captured after candidate is Interested',
+    enum: ['Received', 'Pending', 'Not Reachable'],
+  })
+  @IsOptional()
+  @IsIn(['Received', 'Pending', 'Not Reachable'])
+  resume_status?: string | null;
+
+  @ApiPropertyOptional({ description: 'Link to the received resume/CV' })
+  @IsOptional()
+  @IsString()
+  resume_link?: string | null;
+
+  @ApiPropertyOptional({ description: 'Date to chase the CV when resume is Pending (YYYY-MM-DD)' })
+  @IsOptional()
+  @IsDateString()
+  resume_followup_date?: string | null;
+
   @ApiPropertyOptional({ description: 'Free-text notes' })
   @IsOptional()
   @IsString()

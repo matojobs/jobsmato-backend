@@ -433,10 +433,10 @@ export class RecruiterService {
     }
 
     const result = await this.dataSource.query(
-      `INSERT INTO sourcing.candidates (name, phone, email, portal_id, date_of_birth, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5::date, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       RETURNING id, name, phone, email, portal_id, date_of_birth`,
-      [dto.candidate_name, dto.phone, dto.email || null, dto.portal_id || null, dateOfBirth],
+      `INSERT INTO sourcing.candidates (name, phone, email, portal_id, date_of_birth, location, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5::date, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING id, name, phone, email, portal_id, date_of_birth, location`,
+      [dto.candidate_name, dto.phone, dto.email || null, dto.portal_id || null, dateOfBirth, dto.location || null],
     );
 
     const row = result[0];
@@ -448,6 +448,7 @@ export class RecruiterService {
       email: row.email || null,
       qualification: dto.qualification || null,
       work_exp_years: dto.work_exp_years || null,
+      location: row.location || null,
       portal_id: row.portal_id || null,
       age: this.computeAgeFromDateOfBirth(dob) ?? null,
       date_of_birth: this.formatDateOfBirth(dob) ?? null,
@@ -657,6 +658,9 @@ export class RecruiterService {
         a.backout_reason,
         a.hiring_manager_feedback,
         a.followup_date,
+        a.resume_status,
+        a.resume_link,
+        a.resume_followup_date,
         a.notes,
         a.created_at,
         a.updated_at,
@@ -665,6 +669,7 @@ export class RecruiterService {
         c.phone as candidate_phone,
         c.email as candidate_email,
         c.date_of_birth as candidate_date_of_birth,
+        c.location as candidate_location,
         r.id as recruiter_id_full,
         r.name as recruiter_name,
         r.email as recruiter_email,
@@ -850,6 +855,9 @@ export class RecruiterService {
         a.backout_reason,
         a.hiring_manager_feedback,
         a.followup_date,
+        a.resume_status,
+        a.resume_link,
+        a.resume_followup_date,
         a.notes,
         a.created_at,
         a.updated_at,
@@ -858,6 +866,7 @@ export class RecruiterService {
         c.phone as candidate_phone,
         c.email as candidate_email,
         c.date_of_birth as candidate_date_of_birth,
+        c.location as candidate_location,
         r.id as recruiter_id_full,
         r.name as recruiter_name,
         r.email as recruiter_email,
@@ -1034,8 +1043,8 @@ export class RecruiterService {
       }
 
       const candidateInsert = await manager.query(
-        `INSERT INTO sourcing.candidates (name, phone, email, portal_id, date_of_birth, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5::date, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `INSERT INTO sourcing.candidates (name, phone, email, portal_id, date_of_birth, location, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5::date, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          RETURNING id`,
         [
           candidateDto.candidate_name,
@@ -1043,6 +1052,7 @@ export class RecruiterService {
           candidateDto.email || null,
           candidateDto.portal_id || null,
           dateOfBirth,
+          candidateDto.location || null,
         ],
       );
       const candidateId = candidateInsert[0].id;
@@ -1302,11 +1312,37 @@ export class RecruiterService {
       params.push(dto.followup_date || null);
       paramIndex++;
     }
+    if (dto.resume_status !== undefined) {
+      updates.push(`resume_status = $${paramIndex}`);
+      params.push(dto.resume_status || null);
+      paramIndex++;
+    }
+    if (dto.resume_link !== undefined) {
+      updates.push(`resume_link = $${paramIndex}`);
+      params.push(dto.resume_link || null);
+      paramIndex++;
+    }
+    if (dto.resume_followup_date !== undefined) {
+      updates.push(`resume_followup_date = $${paramIndex}`);
+      params.push(dto.resume_followup_date || null);
+      paramIndex++;
+    }
 
     if (dto.notes !== undefined) {
       updates.push(`notes = $${paramIndex}`);
       params.push(dto.notes || null);
       paramIndex++;
+    }
+
+    // Location lives on the candidate, not the application. Update it independently
+    // (and ahead of the early-return below, so a location-only edit still persists).
+    if (dto.location !== undefined) {
+      const loc = (dto.location && String(dto.location).trim()) || null;
+      await this.dataSource.query(
+        `UPDATE sourcing.candidates SET location = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = (SELECT candidate_id FROM sourcing.applications WHERE id = $2 AND recruiter_id = $3)`,
+        [loc, id, recruiterId],
+      );
     }
 
     // ── Event-date stamping (Phase 1 analytics) ──────────────────────────────
@@ -1800,6 +1836,9 @@ export class RecruiterService {
       backout_reason: row.backout_reason ?? null,
       hiring_manager_feedback: row.hiring_manager_feedback ?? null,
       followup_date: row.followup_date ? row.followup_date.toISOString?.().split('T')[0] ?? String(row.followup_date) : null,
+      resume_status: row.resume_status ?? null,
+      resume_link: row.resume_link ?? null,
+      resume_followup_date: row.resume_followup_date ? row.resume_followup_date.toISOString?.().split('T')[0] ?? String(row.resume_followup_date) : null,
       notes: row.notes ?? null,
       created_at: row.created_at.toISOString(),
       updated_at: row.updated_at.toISOString(),
@@ -1810,6 +1849,7 @@ export class RecruiterService {
         email: row.candidate_email || null,
         qualification: null,
         work_exp_years: null,
+        location: row.candidate_location ?? null,
         portal_id: null,
         age: this.computeAgeFromDateOfBirth(row.candidate_date_of_birth) ?? null,
         date_of_birth: this.formatDateOfBirth(row.candidate_date_of_birth) ?? null,

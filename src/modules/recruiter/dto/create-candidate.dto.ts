@@ -30,6 +30,11 @@ export class CreateCandidateDto {
   @IsString()
   qualification?: string;
 
+  @ApiPropertyOptional({ description: 'Candidate location / city', example: 'Ahmedabad' })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
   @ApiPropertyOptional({ description: 'Work experience in years', example: 5 })
   @IsOptional()
   @IsNumber()
