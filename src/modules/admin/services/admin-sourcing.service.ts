@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { StatusMapper } from '../../recruiter/mappers/status.mapper';
 
@@ -192,5 +192,81 @@ export class AdminSourcingService {
       limit,
       total_pages: Math.ceil(total / limit) || 1,
     };
+  }
+
+  /** Active sourcing recruiters — used to populate the reassign dropdown (admin). */
+  async getRecruiters() {
+    const rows = await this.dataSource.query(
+      `SELECT id, name, email, is_active
+       FROM sourcing.recruiters
+       WHERE is_active = true
+       ORDER BY name ASC`,
+    );
+    return rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email ?? null,
+      is_active: r.is_active,
+    }));
+  }
+
+  /**
+   * Reassign a sourcing application to a different recruiter and reset it to a
+   * fresh lead (clears the full call → joining funnel) so the new recruiter
+   * starts clean. Keeps candidate, company/role, portal and assigned_date
+   * (assigned_date is the partition key — not changed to avoid row movement).
+   */
+  async reassignApplication(applicationId: number, newRecruiterId: number) {
+    const existing = await this.dataSource.query(
+      `SELECT id, recruiter_id FROM sourcing.applications WHERE id = $1`,
+      [applicationId],
+    );
+    if (existing.length === 0) {
+      throw new NotFoundException(`Application ${applicationId} not found`);
+    }
+
+    const recruiter = await this.dataSource.query(
+      `SELECT id FROM sourcing.recruiters WHERE id = $1 AND is_active = true`,
+      [newRecruiterId],
+    );
+    if (recruiter.length === 0) {
+      throw new BadRequestException(`Recruiter ${newRecruiterId} not found or inactive`);
+    }
+
+    await this.dataSource.query(
+      `UPDATE sourcing.applications SET
+         recruiter_id = $1,
+         call_date = NULL,
+         call_status = NULL,
+         interested = NULL,
+         not_interested_remark = NULL,
+         not_attended_reason = NULL,
+         rejection_reason = NULL,
+         interview_scheduled = false,
+         interview_date = NULL,
+         turnup = NULL,
+         interview_status = NULL,
+         selection_status = NULL,
+         joining_status = NULL,
+         joining_date = NULL,
+         expected_joining_date = NULL,
+         backout_date = NULL,
+         backout_reason = NULL,
+         hiring_manager_feedback = NULL,
+         followup_date = NULL,
+         resume_status = NULL,
+         resume_link = NULL,
+         resume_followup_date = NULL,
+         pipeline_stage = 'lead',
+         connected_date = NULL,
+         interested_date = NULL,
+         selection_date = NULL,
+         rejection_date = NULL,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [newRecruiterId, applicationId],
+    );
+
+    return { success: true, id: applicationId, recruiter_id: newRecruiterId };
   }
 }

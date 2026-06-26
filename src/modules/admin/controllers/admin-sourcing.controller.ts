@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminSourcingService } from '../services/admin-sourcing.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -53,5 +53,20 @@ export class AdminSourcingController {
       start_date: startDate,
       end_date: endDate,
     });
+  }
+
+  @Get('recruiters')
+  @ApiOperation({ summary: 'List active sourcing recruiters (for reassign dropdown)' })
+  async getRecruiters() {
+    return this.adminSourcingService.getRecruiters();
+  }
+
+  @Patch('applications/:id/reassign')
+  @ApiOperation({ summary: 'Reassign a sourcing application to another recruiter (resets it to a fresh lead)' })
+  async reassignApplication(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { recruiter_id: number },
+  ) {
+    return this.adminSourcingService.reassignApplication(id, Number(body.recruiter_id));
   }
 }
