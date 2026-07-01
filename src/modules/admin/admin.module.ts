@@ -22,6 +22,8 @@ import { AdminActivityController } from './controllers/admin-activity.controller
 import { AdminLogsController } from './controllers/admin-logs.controller';
 import { AdminRecruiterPerformanceController } from './controllers/admin-recruiter-performance.controller';
 import { AdminSourcingController } from './controllers/admin-sourcing.controller';
+import { AdminMasterDataController } from './controllers/admin-master-data.controller';
+import { PublicMasterDataController } from './controllers/public-master-data.controller';
 
 // Services
 import { AdminService } from './services/admin.service';
@@ -36,6 +38,7 @@ import { AdminActivityService } from './services/admin-activity.service';
 import { AdminAuditService } from './services/admin-audit.service';
 import { AdminRecruiterPerformanceService } from './services/admin-recruiter-performance.service';
 import { AdminSourcingService } from './services/admin-sourcing.service';
+import { AdminMasterDataService } from './services/admin-master-data.service';
 import { CommonModule } from '../../common/common.module';
 
 @Module({
@@ -65,6 +68,8 @@ import { CommonModule } from '../../common/common.module';
     AdminLogsController,
     AdminRecruiterPerformanceController,
     AdminSourcingController,
+    AdminMasterDataController,
+    PublicMasterDataController,
   ],
   providers: [
     AdminService,
@@ -79,8 +84,8 @@ import { CommonModule } from '../../common/common.module';
     AdminAuditService,
     AdminRecruiterPerformanceService,
     AdminSourcingService,
+    AdminMasterDataService,
   ],
   exports: [AdminService, AdminAuditService],
 })
 export class AdminModule { }
-
