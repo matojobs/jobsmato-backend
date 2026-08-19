@@ -91,6 +91,21 @@ class UpdateCityDto {
   isActive?: boolean;
 }
 
+class CreateNegativeFunnelReasonDto {
+  @IsString()
+  reason: string;
+}
+
+class UpdateNegativeFunnelReasonDto {
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
 @ApiTags('admin-master-data')
 @Controller('admin/master-data')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -150,5 +165,32 @@ export class AdminMasterDataController {
   @ApiOperation({ summary: 'Update admin-managed city' })
   updateCity(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateCityDto) {
     return this.masterDataService.updateCity(id, body);
+  }
+
+  @Get('negative-funnel-reasons')
+  @AdminPermissions(AdminPermission.VIEW_COMPANIES)
+  @UseGuards(AdminPermissionGuard)
+  @ApiOperation({ summary: 'List admin-managed negative-funnel (not-interested) reasons' })
+  getNegativeFunnelReasons(@Query() query: MasterDataQueryDto) {
+    return this.masterDataService.getNegativeFunnelReasons({
+      ...query,
+      isActive: query.isActive === undefined ? undefined : query.isActive === 'true',
+    });
+  }
+
+  @Post('negative-funnel-reasons')
+  @AdminPermissions(AdminPermission.CREATE_COMPANIES)
+  @UseGuards(AdminPermissionGuard)
+  @ApiOperation({ summary: 'Create negative-funnel reason' })
+  createNegativeFunnelReason(@Body() body: CreateNegativeFunnelReasonDto) {
+    return this.masterDataService.createNegativeFunnelReason(body);
+  }
+
+  @Put('negative-funnel-reasons/:id')
+  @AdminPermissions(AdminPermission.EDIT_COMPANIES)
+  @UseGuards(AdminPermissionGuard)
+  @ApiOperation({ summary: 'Update negative-funnel reason' })
+  updateNegativeFunnelReason(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateNegativeFunnelReasonDto) {
+    return this.masterDataService.updateNegativeFunnelReason(id, body);
   }
 }

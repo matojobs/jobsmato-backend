@@ -31,6 +31,15 @@ export interface UpdateCityDto {
   isActive?: boolean;
 }
 
+export interface CreateNegativeFunnelReasonDto {
+  reason: string;
+}
+
+export interface UpdateNegativeFunnelReasonDto {
+  reason?: string;
+  isActive?: boolean;
+}
+
 @Injectable()
 export class AdminMasterDataService {
   constructor(private readonly dataSource: DataSource) {}
@@ -257,5 +266,91 @@ export class AdminMasterDataService {
     );
 
     return { success: true, city: row };
+  }
+
+  async getNegativeFunnelReasons(query: MasterDataQuery = {}) {
+    const params: any[] = [];
+    const where: string[] = [];
+
+    if (query.search) {
+      params.push(`%${query.search.trim()}%`);
+      where.push(`reason ILIKE $${params.length}`);
+    }
+    if (query.isActive !== undefined) {
+      params.push(query.isActive);
+      where.push(`is_active = $${params.length}`);
+    }
+
+    const rows = await this.dataSource.query(
+      `
+      SELECT
+        id,
+        reason,
+        is_active AS "isActive",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt"
+      FROM sourcing.negative_funnel_reasons
+      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+      ORDER BY reason ASC
+      LIMIT 500
+      `,
+      params,
+    );
+
+    return { reasons: rows };
+  }
+
+  async createNegativeFunnelReason(dto: CreateNegativeFunnelReasonDto) {
+    const reason = this.cleanText(dto.reason);
+    if (!reason) throw new BadRequestException('Reason is required');
+
+    const duplicate = await this.dataSource.query(
+      `SELECT id FROM sourcing.negative_funnel_reasons WHERE LOWER(reason) = LOWER($1)`,
+      [reason],
+    );
+    if (duplicate.length) throw new BadRequestException('This reason already exists');
+
+    const [row] = await this.dataSource.query(
+      `
+      INSERT INTO sourcing.negative_funnel_reasons (reason, is_active, created_at, updated_at)
+      VALUES ($1, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING id, reason, is_active AS "isActive"
+      `,
+      [reason],
+    );
+
+    return { success: true, reason: row };
+  }
+
+  async updateNegativeFunnelReason(id: number, dto: UpdateNegativeFunnelReasonDto) {
+    const currentRows = await this.dataSource.query(
+      `SELECT * FROM sourcing.negative_funnel_reasons WHERE id = $1`,
+      [id],
+    );
+    if (!currentRows.length) throw new NotFoundException('Reason not found');
+
+    const current = currentRows[0];
+    const reason = dto.reason !== undefined ? this.cleanText(dto.reason) : current.reason;
+    const isActive = dto.isActive !== undefined ? dto.isActive : current.is_active;
+
+    if (!reason) throw new BadRequestException('Reason is required');
+
+    const duplicate = await this.dataSource.query(
+      `SELECT id FROM sourcing.negative_funnel_reasons WHERE LOWER(reason) = LOWER($1) AND id <> $2`,
+      [reason, id],
+    );
+    if (duplicate.length) throw new BadRequestException('This reason already exists');
+
+    const [row] = await this.dataSource.query(
+      `
+      UPDATE sourcing.negative_funnel_reasons
+      SET reason = $1, is_active = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+      RETURNING id, reason, is_active AS "isActive"
+      `,
+      [reason, isActive, id],
+    );
+
+    return { success: true, reason: row };
   }
 }

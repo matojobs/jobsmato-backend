@@ -13,4 +13,11 @@ export class PublicMasterDataController {
     const result = await this.masterDataService.getCities({ isActive: true });
     return { cities: result.cities.map((city) => ({ name: city.name, state: city.state || '' })) };
   }
+
+  @Get('negative-funnel-reasons')
+  @ApiOperation({ summary: 'List active not-interested reasons for dropdowns' })
+  async getActiveNegativeFunnelReasons() {
+    const result = await this.masterDataService.getNegativeFunnelReasons({ isActive: true });
+    return { reasons: result.reasons.map((r) => r.reason) };
+  }
 }
